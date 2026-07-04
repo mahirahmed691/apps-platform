@@ -1,0 +1,36 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      app:
+        description: 'App to promote to production'
+        required: true
+
+jobs:
+  # Merging to main = automatic canary deploy. This is your
+  # "first paying cohort watches this" environment — not everyone yet.
+  deploy-canary:
+    runs-on: ubuntu-latest
+    environment: canary
+    steps:
+      - uses: actions/checkout@v4
+      - run: echo "Deploying to canary via Vercel (production branch = canary domain)"
+      # Actual command once Vercel project is linked:
+      # - run: vercel deploy --prod --scope=your-team
+
+  # Production promotion is a SEPARATE, manual trigger — never
+  # automatic off a merge. This is the rollback-plan-ships-with-every-
+  # change principle: promoting to prod is a deliberate act with a
+  # human attached to it, not a side effect of pushing code.
+  deploy-production:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - run: echo "Promoting ${{ github.event.inputs.app }} canary build to production"
+      - run: echo "Confirm canary error rate + cost-per-user are within threshold BEFORE running this."
+      # - run: vercel promote <canary-deployment-url> --scope=your-team

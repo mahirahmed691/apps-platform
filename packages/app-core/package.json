@@ -1,0 +1,10 @@
+{
+  "name": "@yourorg/app-core",
+  "version": "1.0.0",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.43.0",
+    "stripe": "^15.0.0"
+  }
+}

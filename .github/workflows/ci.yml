@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm install
+      # Turborepo only rebuilds/retests what actually changed —
+      # touching app #3 doesn't re-test apps #1 and #2 unnecessarily,
+      # but a change to packages/app-core DOES trigger every app that
+      # depends on it, since that's exactly the case you need caught.
+      - run: npm run lint
+      - run: npm run build
+      - run: npm run test
+
+  # Deploy previews for every PR — this IS your stage environment,
+  # automatic, no manual "let me spin up a test env" step.
+  preview-deploy:
+    needs: build-and-test
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: echo "Vercel preview deploys automatically via Vercel's GitHub integration."
+      - run: echo "Treat the preview URL as your stage environment for this PR."
