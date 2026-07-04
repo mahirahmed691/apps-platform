@@ -8,3 +8,5 @@ dist/
 .vercel
 .turbo
 .DS_Store
+.provisioning-stripe.json
+supabase/
