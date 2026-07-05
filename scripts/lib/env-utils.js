@@ -209,12 +209,22 @@ async function resolveSupabaseAccessToken(options = {}) {
     }
   }
 
+  const rootEnvPath = path.join(REPO_ROOT, '.env');
+  const rootEnv = readEnvFile(rootEnvPath);
+  if (Object.prototype.hasOwnProperty.call(rootEnv, 'SUPABASE_ACCESS_TOKEN') && !rootEnv.SUPABASE_ACCESS_TOKEN?.trim()) {
+    throw new Error(
+      'SUPABASE_ACCESS_TOKEN is empty in root .env.\n' +
+        'Paste your sbp_... token on that line, then re-run.\n' +
+        'Create a token at: https://supabase.com/dashboard/account/tokens'
+    );
+  }
+
   throw new Error(
     'Missing SUPABASE_ACCESS_TOKEN.\n' +
       'Either:\n' +
-      '  1. Add SUPABASE_ACCESS_TOKEN=... to root .env (see .env.example), or\n' +
+      '  1. Add SUPABASE_ACCESS_TOKEN=sbp_... to root .env (see .env.example), or\n' +
       '  2. Run `supabase login`, or\n' +
-      '  3. Re-run this script and paste a token when prompted.\n' +
+      (interactive ? '  3. Re-run this script and paste a token when prompted.\n' : '') +
       'Create a token at: https://supabase.com/dashboard/account/tokens'
   );
 }

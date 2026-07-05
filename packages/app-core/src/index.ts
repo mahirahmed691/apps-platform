@@ -5,3 +5,4 @@ export * from './observability';
 export * from './authErrors';
 export * from './apiErrors';
 export * from './googleAuth';
+export * from './linkedinAuth';

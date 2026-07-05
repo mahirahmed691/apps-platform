@@ -14,6 +14,7 @@ import {
   buildChatPrompt,
   parseAiChatResponse,
 } from '@/lib/cvBuilder';
+import type { UserProfile } from '@/lib/userProfile';
 
 const AI_TIMEOUT_MS = 20_000;
 const FEATURE_NAME = 'cv_chat';
@@ -66,6 +67,21 @@ function mergeAnswers(current: CvAnswers, updates?: Partial<CvAnswers>): CvAnswe
   return merged;
 }
 
+function rowToProfile(row: Record<string, unknown>, emailFallback: string): UserProfile {
+  return {
+    fullName: typeof row.full_name === 'string' ? row.full_name.trim() : '',
+    email: (typeof row.email === 'string' ? row.email.trim() : '') || emailFallback,
+    phone: typeof row.phone === 'string' ? row.phone.trim() : '',
+    location: typeof row.location === 'string' ? row.location.trim() : '',
+    linkedinUrl: typeof row.linkedin_url === 'string' ? row.linkedin_url.trim() : '',
+    portfolioUrl: typeof row.portfolio_url === 'string' ? row.portfolio_url.trim() : '',
+    headline: typeof row.headline === 'string' ? row.headline.trim() : '',
+    avatarUrl: typeof row.avatar_url === 'string' ? row.avatar_url.trim() : '',
+    linkedinConnectedAt:
+      typeof row.linkedin_connected_at === 'string' ? row.linkedin_connected_at : null,
+  };
+}
+
 export async function POST(req: NextRequest) {
   const startTime = Date.now();
   const auth = await requireAuthUser(req);
@@ -106,6 +122,15 @@ export async function POST(req: NextRequest) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), AI_TIMEOUT_MS);
 
+  const { data: profileRow } = await auth.db
+    .from('profiles')
+    .select(
+      'email, full_name, phone, location, linkedin_url, portfolio_url, headline, avatar_url, linkedin_connected_at'
+    )
+    .eq('id', auth.user.id)
+    .maybeSingle();
+  const profile = profileRow ? rowToProfile(profileRow, auth.user.email ?? '') : null;
+
   try {
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -117,7 +142,7 @@ export async function POST(req: NextRequest) {
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
         max_tokens: 768,
-        messages: [{ role: 'user', content: buildChatPrompt(messages, answers, userMessage) }],
+        messages: [{ role: 'user', content: buildChatPrompt(messages, answers, userMessage, profile) }],
       }),
       signal: controller.signal,
     });

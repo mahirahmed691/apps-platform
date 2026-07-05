@@ -4,12 +4,13 @@ import { useCallback, useState } from 'react';
 import { parseApiError } from '@yourorg/app-core';
 import {
   EMPTY_ANSWERS,
-  FIRST_QUESTION,
-  WELCOME_MESSAGE,
+  buildInitialMessages,
+  getPrefilledAnswersFromProfile,
   nextMessageId,
   type ChatMessage,
   type CvAnswers,
 } from '@/lib/cvBuilder';
+import { normalizeUserProfile, type UserProfile } from '@/lib/userProfile';
 import type { DraftState } from '@/hooks/useCvDraft';
 
 function mergeAnswers(current: CvAnswers, updates?: Partial<CvAnswers>): CvAnswers {
@@ -26,31 +27,31 @@ function mergeAnswers(current: CvAnswers, updates?: Partial<CvAnswers>): CvAnswe
   return merged;
 }
 
-function createInitialMessages(): ChatMessage[] {
-  return [
-    { id: nextMessageId(), role: 'assistant', content: WELCOME_MESSAGE },
-    { id: nextMessageId(), role: 'assistant', content: FIRST_QUESTION },
-  ];
+function createInitialState(profile?: UserProfile | null) {
+  const initial = buildInitialMessages(profile);
+  return {
+    messages: initial.messages,
+    answers: { ...EMPTY_ANSWERS, ...getPrefilledAnswersFromProfile(profile) },
+    composerHint: initial.hint,
+    composerPlaceholder: initial.placeholder,
+  };
 }
 
 export function useCvConversation(accessToken: string | undefined) {
-  const [messages, setMessages] = useState<ChatMessage[]>(createInitialMessages);
-  const [answers, setAnswers] = useState<CvAnswers>(EMPTY_ANSWERS);
+  const [boot] = useState(() => createInitialState());
+  const [messages, setMessages] = useState<ChatMessage[]>(boot.messages);
+  const [answers, setAnswers] = useState<CvAnswers>(boot.answers);
   const [finished, setFinished] = useState(false);
   const [thinking, setThinking] = useState(false);
   const [turnCount, setTurnCount] = useState(0);
-  const [composerHint, setComposerHint] = useState<string | undefined>(
-    'A sentence is enough. This shapes the whole CV.'
-  );
-  const [composerPlaceholder, setComposerPlaceholder] = useState(
-    'e.g. Senior Product Manager in fintech…'
-  );
+  const [composerHint, setComposerHint] = useState<string | undefined>(boot.composerHint);
+  const [composerPlaceholder, setComposerPlaceholder] = useState(boot.composerPlaceholder);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [initialized, setInitialized] = useState(false);
 
   const restoreDraft = useCallback((draft: DraftState) => {
-    setMessages(draft.messages.length > 0 ? draft.messages : createInitialMessages());
-    setAnswers(draft.answers);
+    setMessages(draft.messages.length > 0 ? draft.messages : createInitialState().messages);
+    setAnswers({ ...EMPTY_ANSWERS, ...draft.answers });
     setFinished(draft.finished);
     setTurnCount(draft.turnCount);
     setInitialized(true);
@@ -150,13 +151,27 @@ export function useCvConversation(accessToken: string | undefined) {
     [accessToken, answers, finished, messages, thinking]
   );
 
+  const applyProfileContext = useCallback((profile: UserProfile) => {
+    const safe = normalizeUserProfile(profile);
+    setAnswers((prev) => ({ ...prev, ...getPrefilledAnswersFromProfile(safe) }));
+
+    setMessages((current) => {
+      if (current.some((message) => message.role === 'user')) return current;
+      const initial = buildInitialMessages(safe);
+      setComposerHint(initial.hint);
+      setComposerPlaceholder(initial.placeholder);
+      return initial.messages;
+    });
+  }, []);
+
   const reset = useCallback(() => {
-    setMessages(createInitialMessages());
-    setAnswers(EMPTY_ANSWERS);
+    const initial = createInitialState();
+    setMessages(initial.messages);
+    setAnswers(initial.answers);
     setFinished(false);
     setTurnCount(0);
-    setComposerHint('A sentence is enough. This shapes the whole CV.');
-    setComposerPlaceholder('e.g. Senior Product Manager in fintech…');
+    setComposerHint(initial.composerHint);
+    setComposerPlaceholder(initial.composerPlaceholder);
     setSuggestions([]);
     setInitialized(true);
   }, []);
@@ -176,5 +191,6 @@ export function useCvConversation(accessToken: string | undefined) {
     sendMessage,
     updateAnswer,
     reset,
+    applyProfileContext,
   };
 }

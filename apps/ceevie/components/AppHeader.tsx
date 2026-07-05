@@ -2,13 +2,23 @@
 
 import { useState } from 'react';
 import type { UsageInfo } from '@/hooks/useUsage';
+import { useStudioPreferences } from '@/hooks/useStudioPreferences';
+import { StudioControls } from '@/components/StudioControls';
+import { useCeevieVoice } from '@/hooks/useCeevieVoice';
+
+import { UserAvatar } from '@/components/UserAvatar';
 
 type AppHeaderProps = {
   email?: string | null;
+  displayName?: string;
+  avatarUrl?: string;
   usage?: UsageInfo | null;
   upgrading?: boolean;
   onUpgrade?: () => void;
   onSignOut: () => void;
+  onOpenVoiceSetup?: () => void;
+  onOpenProfile?: () => void;
+  profileComplete?: boolean;
   filledSections?: number;
   totalSections?: number;
   finished?: boolean;
@@ -16,15 +26,22 @@ type AppHeaderProps = {
 
 export function AppHeader({
   email,
+  displayName,
+  avatarUrl,
   usage,
   upgrading,
   onUpgrade,
   onSignOut,
+  onOpenVoiceSetup,
+  onOpenProfile,
+  profileComplete = false,
   filledSections = 0,
   totalSections = 6,
   finished = false,
 }: AppHeaderProps) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const { prefs, toggleCeevieVoice, toggleCaptureSound } = useStudioPreferences();
+  const { supported: voiceOutSupported } = useCeevieVoice(prefs.ceevieVoice);
   const showUpgrade = usage && usage.plan !== 'active' && onUpgrade;
 
   const progressPercent = totalSections > 0 ? Math.min((filledSections / totalSections) * 100, 100) : 0;
@@ -34,7 +51,7 @@ export function AppHeader({
     <header className="app-header">
       <div className="app-brand">
         <h1>Ceevie</h1>
-        <p>Talk through your experience — we write the CV</p>
+        <p>The end of blank pages</p>
       </div>
 
       {totalSections > 0 && (
@@ -50,6 +67,24 @@ export function AppHeader({
       )}
 
       <div className="app-header-actions app-header-actions-desktop">
+        <StudioControls
+          ceevieVoice={prefs.ceevieVoice}
+          captureSound={prefs.captureSound}
+          voiceSupported={voiceOutSupported}
+          onToggleVoice={toggleCeevieVoice}
+          onToggleSound={toggleCaptureSound}
+        />
+        {onOpenProfile && (
+          <button type="button" className="btn btn-ghost btn-sm profile-header-btn" onClick={onOpenProfile}>
+            Profile
+            {!profileComplete && <span className="profile-header-dot" aria-label="Profile incomplete" />}
+          </button>
+        )}
+        {onOpenVoiceSetup && (
+          <button type="button" className="btn btn-ghost btn-sm" onClick={onOpenVoiceSetup}>
+            Voice setup
+          </button>
+        )}
         {usage && (
           <span className="usage-badge" title={`${usage.remaining} of ${usage.dailyLimit} CV generations left today`}>
             {usage.remaining}/{usage.dailyLimit} left today
@@ -60,10 +95,11 @@ export function AppHeader({
             {upgrading ? 'Loading…' : 'Upgrade'}
           </button>
         )}
-        {email && (
-          <span className="user-chip" title={email}>
-            {email}
-          </span>
+        {(displayName || email) && (
+          <div className="user-chip user-chip-with-avatar" title={email ?? displayName ?? undefined}>
+            <UserAvatar name={displayName} email={email} avatarUrl={avatarUrl} size="sm" />
+            <span>{displayName || email}</span>
+          </div>
         )}
         <button type="button" className="btn btn-ghost" onClick={onSignOut}>
           Sign out
@@ -71,6 +107,13 @@ export function AppHeader({
       </div>
 
       <div className="app-header-mobile">
+        <StudioControls
+          ceevieVoice={prefs.ceevieVoice}
+          captureSound={prefs.captureSound}
+          voiceSupported={voiceOutSupported}
+          onToggleVoice={toggleCeevieVoice}
+          onToggleSound={toggleCaptureSound}
+        />
         {usage && (
           <span className="usage-badge usage-badge-compact" title={`${usage.remaining} generations left today`}>
             {usage.remaining} left
@@ -115,6 +158,32 @@ export function AppHeader({
                   }}
                 >
                   {upgrading ? 'Loading…' : 'Upgrade plan'}
+                </button>
+              )}
+              {onOpenProfile && (
+                <button
+                  type="button"
+                  className="app-header-menu-item"
+                  role="menuitem"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    onOpenProfile();
+                  }}
+                >
+                  Profile
+                </button>
+              )}
+              {onOpenVoiceSetup && (
+                <button
+                  type="button"
+                  className="app-header-menu-item"
+                  role="menuitem"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    onOpenVoiceSetup();
+                  }}
+                >
+                  Voice setup
                 </button>
               )}
               <button

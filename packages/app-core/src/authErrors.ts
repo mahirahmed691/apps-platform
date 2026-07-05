@@ -32,6 +32,9 @@ export function getAuthErrorMessage(error: AuthError): string {
   if (message.includes('email not confirmed')) {
     return 'Confirm your email before signing in.';
   }
+  if (message.includes('manual linking is disabled')) {
+    return 'LinkedIn linking is not enabled on this project yet. Ask the admin to re-run setup: npm run setup:linkedin-auth -- ceevie jkonyzmutmsppwxvccbi --yes';
+  }
 
   return error.message || 'Authentication failed. Please try again.';
 }

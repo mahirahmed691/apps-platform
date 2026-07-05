@@ -12,7 +12,7 @@ export type CvDraftPayload = {
 
 function isCvAnswers(value: unknown): value is CvAnswers {
   if (!value || typeof value !== 'object') return false;
-  const keys = ['targetRole', 'recentRole', 'achievements', 'experience', 'skills', 'education', 'extras', 'jobDescription'];
+  const keys = ['fullName', 'targetRole', 'recentRole', 'achievements', 'experience', 'skills', 'education', 'extras', 'jobDescription'];
   return keys.every((k) => typeof (value as Record<string, unknown>)[k] === 'string');
 }
 

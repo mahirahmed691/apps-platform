@@ -1,4 +1,4 @@
-const PRODUCTION_SITE_URL = 'https://ceevie.co.uk';
+const PRODUCTION_SITE_URL = 'https://www.ceevie.co.uk';
 
 /** Public site origin for redirects and metadata. Never trust client input here. */
 export function getSiteUrl(): string {
@@ -10,6 +10,15 @@ export function getSiteUrl(): string {
   }
 
   return PRODUCTION_SITE_URL;
+}
+
+/** OAuth redirect origin — must match the tab where sign-in started (PKCE verifier lives in localStorage). */
+export function getOAuthSiteUrl(): string {
+  if (typeof window !== 'undefined') {
+    return window.location.origin;
+  }
+
+  return getSiteUrl();
 }
 
 export function getSiteDomain(): string {

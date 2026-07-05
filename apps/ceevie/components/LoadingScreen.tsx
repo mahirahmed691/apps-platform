@@ -2,7 +2,7 @@ type LoadingScreenProps = {
   message?: string;
 };
 
-export function LoadingScreen({ message = 'Loading your workspace…' }: LoadingScreenProps) {
+export function LoadingScreen({ message = 'Opening your studio…' }: LoadingScreenProps) {
   return (
     <div className="loading-screen">
       <div className="loading-brand" aria-busy="true" aria-live="polite">

@@ -1,20 +1,25 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { parseApiError } from '@yourorg/app-core';
+import { parseApiError, userHasLinkedInIdentity } from '@yourorg/app-core';
 import { AppHeader } from '@/components/AppHeader';
 import { CvPreview } from '@/components/CvPreview';
 import { ExperienceChat } from '@/components/ExperienceChat';
 import { MobileBottomNav } from '@/components/MobileBottomNav';
 import { ResultPanel } from '@/components/ResultPanel';
+import { ProfilePanel } from '@/components/ProfilePanel';
 import { LoadingScreen } from '@/components/LoadingScreen';
 import { SetupRequired } from '@/components/SetupRequired';
 import { useAuth } from '@/hooks/useAuth';
 import { useCvConversation } from '@/hooks/useCvConversation';
 import { useCvDraft } from '@/hooks/useCvDraft';
 import { useUsage } from '@/hooks/useUsage';
+import { useUserProfile } from '@/hooks/useUserProfile';
 import { buildCvPrompt, isReadyToGenerate, countFilledSections, REQUIRED_CV_SECTIONS } from '@/lib/cvBuilder';
+import { syncLinkedInProfileFromClient } from '@/lib/linkedinSyncClient';
+import { profileNeedsLinkedInImport, profileSetupComplete, type UserProfile } from '@/lib/userProfile';
+import { getOAuthSiteUrl } from '@/lib/site';
 
 export default function Home() {
   const router = useRouter();
@@ -25,8 +30,19 @@ export default function Home() {
   const [generating, setGenerating] = useState(false);
   const [showResult, setShowResult] = useState(false);
   const [mobilePanel, setMobilePanel] = useState<'chat' | 'preview'>('chat');
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [linkedInImportFresh, setLinkedInImportFresh] = useState(false);
+  const openOnboardingRef = useRef<(() => void) | null>(null);
+  const profilePrefilledRef = useRef(false);
+  const linkedInAutoSyncRef = useRef(false);
 
   const accessToken = session?.access_token;
+
+  function handleOpenVoiceSetup() {
+    setMobilePanel('chat');
+    openOnboardingRef.current?.();
+  }
 
   const conversation = useCvConversation(accessToken);
   const {
@@ -44,9 +60,12 @@ export default function Home() {
     sendMessage,
     updateAnswer,
     reset,
+    applyProfileContext,
   } = conversation;
 
   const { usage, refresh: refreshUsage, upgrade, upgrading } = useUsage(accessToken);
+  const { profile, loaded: profileLoaded, saveStatus: profileSaveStatus, saveProfile, patchProfile, loadProfile } =
+    useUserProfile(accessToken);
 
   const draftState = useMemo(
     () => ({ answers, messages, finished, turnCount, generatedCv: result }),
@@ -77,12 +96,57 @@ export default function Home() {
   }, [accessToken, initialized, loadDraft, restoreDraft, markInitialized]);
 
   useEffect(() => {
+    if (!initialized || !profileLoaded || profilePrefilledRef.current) return;
+    profilePrefilledRef.current = true;
+    applyProfileContext(profile);
+  }, [initialized, profileLoaded, profile, applyProfileContext]);
+
+  useEffect(() => {
+    if (!accessToken || !session?.user || !profileLoaded || !supabase || linkedInAutoSyncRef.current) return;
+    if (!userHasLinkedInIdentity(session.user) || !profileNeedsLinkedInImport(profile)) return;
+
+    linkedInAutoSyncRef.current = true;
+    void syncLinkedInProfileFromClient(supabase, accessToken, { retries: 3 }).then(async (result) => {
+      if (!result.ok) return;
+      const nextProfile = await loadProfile();
+      if (nextProfile) applyProfileContext(nextProfile);
+      setLinkedInImportFresh(true);
+    });
+  }, [accessToken, session?.user, profileLoaded, profile, loadProfile, applyProfileContext, supabase]);
+
+  useEffect(() => {
     if (typeof window === 'undefined') return;
     if (new URLSearchParams(window.location.search).get('upgraded') === '1') {
       refreshUsage();
       router.replace('/', { scroll: false });
     }
   }, [refreshUsage, router]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const params = new URLSearchParams(window.location.search);
+    const linkedInParam = params.get('linkedin');
+    if (!linkedInParam) return;
+
+    router.replace('/', { scroll: false });
+
+    if (linkedInParam === 'synced') {
+      void loadProfile().then((nextProfile) => {
+        if (!nextProfile) return;
+        applyProfileContext(nextProfile);
+      });
+      setLinkedInImportFresh(true);
+      setNotice(
+        'LinkedIn connected. Your basics are imported — start the interview to capture your experience.'
+      );
+      return;
+    }
+
+    if (linkedInParam === 'sync-failed') {
+      setError('LinkedIn connected, but we could not import your details. Try Refresh from LinkedIn in Profile.');
+    }
+  }, [router, loadProfile, applyProfileContext]);
 
   async function handleSend(text: string) {
     setError(null);
@@ -119,7 +183,7 @@ export default function Home() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${accessToken}`,
         },
-        body: JSON.stringify({ prompt: buildCvPrompt(answers) }),
+        body: JSON.stringify({ prompt: buildCvPrompt(answers, profile) }),
       });
 
       if (!response.ok) {
@@ -162,6 +226,16 @@ export default function Home() {
     upgrade();
   }
 
+  async function handleSaveProfileName(name: string) {
+    void patchProfile({ fullName: name.trim() });
+  }
+
+  async function handleProfileSetupComplete(next: UserProfile): Promise<boolean> {
+    const ok = await saveProfile(next);
+    if (ok) applyProfileContext(next);
+    return ok;
+  }
+
   if (!configured) return <SetupRequired />;
   if (loading || !initialized) {
     return <LoadingScreen />;
@@ -174,13 +248,18 @@ export default function Home() {
   const previewHasContent = filledSections > 0 || displayResult;
 
   return (
-    <div className="app-shell">
+    <div className="app-shell studio-mode">
       <AppHeader
         email={session?.user?.email}
+        displayName={profile.fullName || undefined}
+        avatarUrl={profile.avatarUrl}
         usage={usage}
         upgrading={upgrading}
         onUpgrade={handleUpgrade}
         onSignOut={signOut}
+        onOpenVoiceSetup={handleOpenVoiceSetup}
+        onOpenProfile={() => setProfileOpen(true)}
+        profileComplete={profileSetupComplete(profile)}
         filledSections={filledSections}
         totalSections={REQUIRED_CV_SECTIONS.length}
         finished={finished}
@@ -189,6 +268,10 @@ export default function Home() {
       <div className={`workspace mobile-panel-${mobilePanel}`}>
         <ExperienceChat
           accessToken={accessToken}
+          profile={profile}
+          profileLoaded={profileLoaded}
+          profileSaving={profileSaveStatus === 'saving'}
+          linkedInImportFresh={linkedInImportFresh}
           messages={messages}
           answers={answers}
           finished={finished}
@@ -205,6 +288,11 @@ export default function Home() {
           filledSections={filledSections}
           showPreviewFab={false}
           onViewPreview={() => setMobilePanel('preview')}
+          onRegisterOpenOnboarding={(open) => {
+            openOnboardingRef.current = open;
+          }}
+          onSaveProfileName={handleSaveProfileName}
+          onSaveProfileSetup={handleProfileSetupComplete}
         />
 
         {displayResult ? (
@@ -233,6 +321,15 @@ export default function Home() {
         />
       </div>
 
+      {notice && (
+        <div className="workspace-notice" role="status">
+          <span>{notice}</span>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={() => setNotice(null)}>
+            Dismiss
+          </button>
+        </div>
+      )}
+
       {error && (
         <div className="workspace-error" role="alert">
           <span>{error}</span>
@@ -243,6 +340,24 @@ export default function Home() {
           )}
         </div>
       )}
+
+      <ProfilePanel
+        open={profileOpen}
+        profile={profile}
+        saveStatus={profileSaveStatus}
+        supabase={supabase}
+        siteUrl={getOAuthSiteUrl()}
+        onClose={() => setProfileOpen(false)}
+        onSave={saveProfile}
+        linkedInLinked={session?.user ? userHasLinkedInIdentity(session.user) : false}
+        onLinkedInSynced={() => {
+          void loadProfile().then((nextProfile) => {
+            if (!nextProfile) return;
+            applyProfileContext(nextProfile);
+            setLinkedInImportFresh(true);
+          });
+        }}
+      />
     </div>
   );
 }

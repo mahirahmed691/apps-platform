@@ -22,10 +22,10 @@ export const metadata = {
     default: 'Ceevie',
     template: '%s · Ceevie',
   },
-  description: 'Build your CV by talking through your experience — just speak naturally.',
+  description: 'You don\'t write CVs anymore. Talk through your experience — Ceevie writes a professional CV in real time.',
   openGraph: {
-    title: 'Ceevie',
-    description: 'Build your CV by talking through your experience — just speak naturally.',
+    title: 'Ceevie — Talk your CV into existence',
+    description: 'You don\'t write CVs anymore. Talk through your experience — Ceevie writes a professional CV in real time.',
     url: siteUrl,
     siteName: 'Ceevie',
     locale: 'en_GB',

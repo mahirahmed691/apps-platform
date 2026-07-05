@@ -11,7 +11,14 @@ create table if not exists public.profiles (
   created_at timestamptz not null default now(),
   stripe_customer_id text unique,
   plan text not null default 'free',              -- 'free' | 'active' | 'past_due' | 'canceled'
-  plan_updated_at timestamptz not null default now()
+  plan_updated_at timestamptz not null default now(),
+  full_name text,
+  phone text,
+  location text,
+  linkedin_url text,
+  portfolio_url text,
+  headline text,
+  profile_updated_at timestamptz
 );
 
 alter table public.profiles enable row level security;

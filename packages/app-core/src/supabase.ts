@@ -16,5 +16,12 @@ export function createSupabaseBrowser(url: string, anonKey: string): SupabaseCli
   if (!url || !anonKey) {
     throw new Error('Missing Supabase URL or anon key.');
   }
-  return createClient(url, anonKey);
+  return createClient(url, anonKey, {
+    auth: {
+      flowType: 'pkce',
+      detectSessionInUrl: true,
+      persistSession: true,
+      autoRefreshToken: true,
+    },
+  });
 }

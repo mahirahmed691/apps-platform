@@ -1,4 +1,13 @@
+import {
+  formatProfileContactBlock,
+  getProfileFirstName,
+  hasLinkedInImport,
+  normalizeUserProfile,
+  type UserProfile,
+} from '@/lib/userProfile';
+
 export type CvAnswers = {
+  fullName: string;
   targetRole: string;
   recentRole: string;
   achievements: string;
@@ -20,6 +29,7 @@ export type ConversationStep = {
 };
 
 export const EMPTY_ANSWERS: CvAnswers = {
+  fullName: '',
   targetRole: '',
   recentRole: '',
   achievements: '',
@@ -31,6 +41,7 @@ export const EMPTY_ANSWERS: CvAnswers = {
 };
 
 export const ANSWER_LABELS: Record<keyof CvAnswers, string> = {
+  fullName: 'Full name',
   targetRole: 'Target role',
   recentRole: 'Recent role',
   achievements: 'Achievements',
@@ -43,6 +54,7 @@ export const ANSWER_LABELS: Record<keyof CvAnswers, string> = {
 
 /** Core sections needed before generating a CV. */
 export const REQUIRED_CV_SECTIONS: (keyof CvAnswers)[] = [
+  'fullName',
   'targetRole',
   'recentRole',
   'achievements',
@@ -52,6 +64,13 @@ export const REQUIRED_CV_SECTIONS: (keyof CvAnswers)[] = [
 ];
 
 export const CONVERSATION_STEPS: ConversationStep[] = [
+  {
+    id: 'fullName',
+    question: "First things first — what's your name, as you'd like it on the CV?",
+    placeholder: 'e.g. Sarah Ahmed',
+    hint: 'First and last name is enough.',
+    examples: ['Sarah Ahmed', "James O'Connor", 'Alex Morgan'],
+  },
   {
     id: 'targetRole',
     question: "Let's start with the goal — what kind of role are you going for?",
@@ -151,19 +170,75 @@ export const MAX_SUGGESTIONS = 5;
 export const MAX_SUGGESTION_LENGTH = 120;
 
 export const WELCOME_MESSAGE =
-  "Hi — I will help you build a CV by asking a few questions. Just talk naturally, like you would to a recruiter.";
+  "Hi — I'm Ceevie. We'll build your CV together. Just talk naturally, like you're speaking to a recruiter.";
 
 export const FIRST_QUESTION = CONVERSATION_STEPS[0].question;
+
+export function getPrefilledAnswersFromProfile(profile?: Partial<UserProfile> | null): Partial<CvAnswers> {
+  const safe = normalizeUserProfile(profile);
+  const prefill: Partial<CvAnswers> = {};
+  if (safe.fullName) prefill.fullName = safe.fullName;
+  if (safe.headline) prefill.targetRole = safe.headline;
+  return prefill;
+}
+
+export function buildWelcomeMessage(profile?: UserProfile | null): string {
+  if (!profile) return WELCOME_MESSAGE;
+
+  const firstName = getProfileFirstName(profile);
+  if (hasLinkedInImport(profile) && firstName) {
+    return `Hi ${firstName} — I've imported your LinkedIn basics. We'll focus on your experience and achievements — the parts LinkedIn doesn't capture.`;
+  }
+
+  if (firstName) {
+    return `Hi ${firstName} — I'm Ceevie. We'll build your CV together. Just talk naturally, like you're speaking to a recruiter.`;
+  }
+
+  return WELCOME_MESSAGE;
+}
+
+export function buildInitialMessages(profile?: UserProfile | null): {
+  messages: ChatMessage[];
+  hint: string;
+  placeholder: string;
+} {
+  const mergedAnswers = {
+    ...EMPTY_ANSWERS,
+    ...getPrefilledAnswersFromProfile(profile),
+  };
+  const step = getActiveConversationStep(mergedAnswers);
+
+  return {
+    messages: [
+      { id: nextMessageId(), role: 'assistant', content: buildWelcomeMessage(profile) },
+      { id: nextMessageId(), role: 'assistant', content: step.question },
+    ],
+    hint: step.hint ?? 'Talk naturally.',
+    placeholder: step.placeholder,
+  };
+}
+
+function createInitialMessages(profile?: UserProfile | null): ChatMessage[] {
+  return buildInitialMessages(profile).messages;
+}
 
 export function nextMessageId(): string {
   return `msg-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
-export function buildCvPrompt(answers: CvAnswers): string {
+export function buildCvPrompt(answers: CvAnswers, profile?: UserProfile | null): string {
   const sections = (Object.keys(ANSWER_LABELS) as (keyof CvAnswers)[])
     .filter((key) => key !== 'jobDescription' && answers[key].trim())
     .map((key) => `### ${ANSWER_LABELS[key]}\n${answers[key].trim()}`)
     .join('\n\n');
+
+  const contactProfile = profile
+    ? {
+        ...profile,
+        fullName: profile.fullName.trim() || answers.fullName.trim(),
+      }
+    : null;
+  const contactBlock = contactProfile ? formatProfileContactBlock(contactProfile) : '';
 
   const tailorBlock = answers.jobDescription.trim()
     ? [
@@ -184,11 +259,12 @@ export function buildCvPrompt(answers: CvAnswers): string {
     'Rules:',
     '- Use only facts from the notes — never invent employers, dates, or achievements.',
     '- Write in clear British English with strong action verbs.',
-    '- Structure: Professional Summary, Experience (reverse chronological), Skills, Education, Additional (if relevant).',
+    '- Structure: Name at top, Professional Summary, Experience (reverse chronological), Skills, Education, Additional (if relevant).',
     '- Use bullet points for achievements; quantify impact where the user provided numbers.',
     '- Keep it to 1–2 pages worth of content (roughly 400–700 words).',
     '- Output plain text only — no markdown headers with #, no commentary before or after the CV.',
     '',
+    contactBlock ? '--- Contact details ---\n' + contactBlock + '\n' : '',
     '--- Conversation notes ---',
     '',
     sections,
@@ -199,7 +275,8 @@ export function buildCvPrompt(answers: CvAnswers): string {
 export function buildChatPrompt(
   messages: ChatMessage[],
   answers: CvAnswers,
-  latestUserMessage?: string
+  latestUserMessage?: string,
+  profile?: UserProfile | null
 ): string {
   const transcript = messages
     .map((m) => `${m.role === 'assistant' ? 'Interviewer' : 'Candidate'}: ${m.content}`)
@@ -210,11 +287,27 @@ export function buildChatPrompt(
     .map((key) => `- ${ANSWER_LABELS[key]}: ${answers[key].trim()}`)
     .join('\n');
 
+  const profileBlock =
+    profile && hasLinkedInImport(profile)
+      ? [
+          '',
+          '--- LinkedIn profile context (already imported — do not re-ask unless missing) ---',
+          profile.fullName.trim() ? `Name: ${profile.fullName.trim()}` : '',
+          profile.headline.trim() ? `Headline: ${profile.headline.trim()}` : '',
+          profile.linkedinUrl.trim() ? `LinkedIn: ${profile.linkedinUrl.trim()}` : '',
+          profile.email.trim() ? `Email: ${profile.email.trim()}` : '',
+          'Focus follow-up questions on experience, achievements, skills, and education.',
+        ]
+          .filter(Boolean)
+          .join('\n')
+      : '';
+
   return [
     'You are Ceevie, a warm UK CV coach interviewing a job seeker.',
     'After each candidate reply, extract structured notes and ask ONE natural follow-up question.',
     '',
     'Topics to cover before finishing (all required except extras and jobDescription):',
+    '- fullName: name as it should appear on the CV',
     '- targetRole: role or industry they want',
     '- recentRole: current/most recent job (company, title, duties)',
     '- achievements: wins, metrics, impact',
@@ -228,7 +321,7 @@ export function buildChatPrompt(
     '- Ask ONE question at a time, conversational tone, no bullet lists in nextQuestion.',
     '- If their last answer covered multiple topics, update several fieldUpdates at once.',
     '- Append to fieldUpdates only new facts from the latest message — do not repeat entire history.',
-    '- Set ready:true only when targetRole, recentRole, achievements, experience, skills, and education all have content.',
+    '- Set ready:true only when fullName, targetRole, recentRole, achievements, experience, skills, and education all have content.',
     '- When ready, nextQuestion should suggest they can build the CV; acknowledgment should briefly summarise what you captured.',
     '- If optional topics missing, you may still set ready:true — do not block on extras or jobDescription.',
     '- When the candidate\'s latest answer is vague, very short (under ~15 words), or missing concrete detail (no metrics, scope, or outcomes), include a "suggestions" array with 3–5 example phrases they could tap to replace or strengthen their answer.',
@@ -237,7 +330,8 @@ export function buildChatPrompt(
     '- Respond with JSON only, no markdown fences.',
     '',
     'JSON shape:',
-    '{"ready":boolean,"nextQuestion":string|null,"hint":string,"placeholder":string,"acknowledgment":string,"suggestions":["…"],"fieldUpdates":{"targetRole":"","recentRole":"","achievements":"","experience":"","skills":"","education":"","extras":"","jobDescription":""}}',
+    '{"ready":boolean,"nextQuestion":string|null,"hint":string,"placeholder":string,"acknowledgment":string,"suggestions":["…"],"fieldUpdates":{"fullName":"","targetRole":"","recentRole":"","achievements":"","experience":"","skills":"","education":"","extras":"","jobDescription":""}}',
+    profileBlock,
     '',
     '--- Captured so far ---',
     captured || '(nothing yet)',

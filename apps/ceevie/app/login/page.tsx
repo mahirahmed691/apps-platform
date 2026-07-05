@@ -4,11 +4,12 @@ import { FormEvent, Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { getAuthErrorMessage, isAlreadyRegistered } from '@yourorg/app-core';
 import { GoogleSignInButton } from '@/components/GoogleSignInButton';
+import { LinkedInSignInButton } from '@/components/LinkedInSignInButton';
+import { LandingDemo } from '@/components/LandingDemo';
 import { LoadingScreen } from '@/components/LoadingScreen';
 import { SetupRequired } from '@/components/SetupRequired';
 import { useAuth } from '@/hooks/useAuth';
-import { getSupabaseProjectRef } from '@/lib/supabase';
-import { getSiteUrl } from '@/lib/site';
+import { getOAuthSiteUrl } from '@/lib/site';
 
 type Mode = 'signin' | 'signup' | 'reset';
 
@@ -24,8 +25,7 @@ function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { loading, configured, supabase } = useAuth({ redirectIfAuthenticated: '/' });
-  const projectRef = getSupabaseProjectRef();
-  const siteUrl = getSiteUrl();
+  const siteUrl = getOAuthSiteUrl();
 
   const [mode, setMode] = useState<Mode>('signin');
   const [email, setEmail] = useState('');
@@ -39,7 +39,7 @@ function LoginForm() {
     if (authError === 'setup') {
       setError('App setup incomplete. Check your environment variables.');
     } else if (authError === 'auth') {
-      setError('Google sign-in did not complete. Please try again.');
+      setError('Sign-in did not complete. Please try again.');
     } else if (authError) {
       setError(decodeURIComponent(authError));
     }
@@ -66,7 +66,7 @@ function LoginForm() {
     try {
       if (mode === 'reset') {
         const { error: resetError } = await authClient.auth.resetPasswordForEmail(email, {
-          redirectTo: `${getSiteUrl()}/login`,
+          redirectTo: `${getOAuthSiteUrl()}/login`,
         });
         if (resetError) {
           setError(getAuthErrorMessage(resetError));
@@ -117,19 +117,35 @@ function LoginForm() {
   }
 
   return (
-    <div className="auth-page">
+    <div className="auth-page auth-page-breakthrough">
+      <aside className="auth-manifesto" aria-hidden="false">
+        <p className="auth-manifesto-kicker">The end of blank pages</p>
+        <h2 className="auth-manifesto-title">
+          You don&apos;t write CVs.
+          <span>You tell your story.</span>
+        </h2>
+        <ul className="auth-manifesto-points">
+          <li>Speak naturally — Ceevie asks the questions out loud</li>
+          <li>Watch your CV materialize in real time on the page</li>
+          <li>Export a polished PDF in one tap when you&apos;re done</li>
+        </ul>
+
+        <LandingDemo />
+      </aside>
+
       <main className="auth-card">
         <p className="auth-kicker">Voice-first CV builder</p>
         <h1>Ceevie</h1>
         <p>
-          {mode === 'signin' && 'Sign in and talk through your experience — we write the CV.'}
-          {mode === 'signup' && 'Create an account and build your CV by voice.'}
+          {mode === 'signin' && 'Sign in and talk your way to a professional CV.'}
+          {mode === 'signup' && 'Create an account. Your next CV starts with your voice.'}
           {mode === 'reset' && 'Enter your email for a password reset link.'}
         </p>
 
         {mode !== 'reset' && (
           <>
             <GoogleSignInButton supabase={authClient} siteUrl={siteUrl} />
+            <LinkedInSignInButton supabase={authClient} siteUrl={siteUrl} />
             <div className="auth-divider" aria-hidden="true">
               <span>or continue with email</span>
             </div>
@@ -230,12 +246,6 @@ function LoginForm() {
             </>
           )}
         </p>
-
-        {process.env.NODE_ENV === 'development' && projectRef && (
-          <p className="auth-dev">
-            Supabase project: <code>{projectRef}</code>
-          </p>
-        )}
       </main>
     </div>
   );

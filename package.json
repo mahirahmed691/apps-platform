@@ -16,7 +16,8 @@
     "sync-vercel-env": "node scripts/sync-vercel-env.js",
     "setup": "./scripts/setup.sh",
     "setup:ceevie-prod": "./scripts/setup-ceevie-prod.sh",
-    "setup:google-auth": "./scripts/setup-google-auth.sh"
+    "setup:google-auth": "./scripts/setup-google-auth.sh",
+    "setup:linkedin-auth": "./scripts/setup-linkedin-auth.sh"
   },
   "devDependencies": {
     "turbo": "^2.0.0"
