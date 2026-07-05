@@ -1,6 +1,7 @@
 'use client';
 
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { useVoiceInput } from '@/hooks/useVoiceInput';
 import { useCeevieVoice } from '@/hooks/useCeevieVoice';
 import { useStudioPreferences } from '@/hooks/useStudioPreferences';
@@ -46,6 +47,9 @@ type ExperienceChatProps = {
   onRegisterOpenOnboarding?: (open: () => void) => void;
   onSaveProfileName?: (name: string) => void;
   onSaveProfileSetup?: (profile: UserProfile) => Promise<boolean>;
+  onLinkedInImported?: () => void;
+  supabase?: SupabaseClient | null;
+  siteUrl?: string;
   profile?: UserProfile;
   profileLoaded?: boolean;
   profileSaving?: boolean;
@@ -73,6 +77,9 @@ export function ExperienceChat({
   onRegisterOpenOnboarding,
   onSaveProfileName,
   onSaveProfileSetup,
+  onLinkedInImported,
+  supabase,
+  siteUrl = '',
   profile,
   profileLoaded = true,
   profileSaving = false,
@@ -370,7 +377,14 @@ export function ExperienceChat({
       </div>
 
       {showProfileSetup && profile && onSaveProfileSetup ? (
-        <ProfileSetupCard profile={profile} saving={profileSaving} onContinue={onSaveProfileSetup} />
+        <ProfileSetupCard
+          profile={profile}
+          saving={profileSaving}
+          supabase={supabase}
+          siteUrl={siteUrl}
+          onContinue={onSaveProfileSetup}
+          onLinkedInImported={onLinkedInImported}
+        />
       ) : showOnboarding ? (
         <VoiceOnboardingFlow
           step={onboardingStep}

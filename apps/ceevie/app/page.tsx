@@ -230,6 +230,12 @@ export default function Home() {
     void patchProfile({ fullName: name.trim() });
   }
 
+  async function handleLinkedInImportedFromSetup() {
+    const nextProfile = await loadProfile();
+    if (nextProfile) applyProfileContext(nextProfile);
+    setLinkedInImportFresh(true);
+  }
+
   async function handleProfileSetupComplete(next: UserProfile): Promise<boolean> {
     const ok = await saveProfile(next);
     if (ok) applyProfileContext(next);
@@ -293,6 +299,9 @@ export default function Home() {
           }}
           onSaveProfileName={handleSaveProfileName}
           onSaveProfileSetup={handleProfileSetupComplete}
+          onLinkedInImported={handleLinkedInImportedFromSetup}
+          supabase={supabase}
+          siteUrl={getOAuthSiteUrl()}
         />
 
         {displayResult ? (

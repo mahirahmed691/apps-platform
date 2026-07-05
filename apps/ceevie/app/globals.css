@@ -4641,6 +4641,23 @@ body::before {
   background: rgba(0, 0, 0, 0.2);
 }
 
+.profile-setup-linkedin {
+  margin-bottom: 0.85rem;
+  padding: 0.75rem 0.85rem;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-md);
+}
+
+.profile-setup-linkedin-copy {
+  margin: 0 0 0.65rem;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+.studio-mode .profile-setup-linkedin {
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .profile-sheet {
     animation: none;

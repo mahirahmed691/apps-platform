@@ -5,7 +5,7 @@ import {
   extractLinkedInProfileWithUserInfo,
   mergeLinkedInIntoProfile,
 } from '@/lib/linkedinProfile';
-import type { UserProfile } from '@/lib/userProfile';
+import { looksLikeLocaleOnlyLocation, type UserProfile } from '@/lib/userProfile';
 
 function rowToProfile(row: Record<string, unknown>, emailFallback: string): UserProfile {
   return {
@@ -90,6 +90,9 @@ export async function POST(req: NextRequest) {
       };
 
   const merged = mergeLinkedInIntoProfile(current, extracted.fields);
+  if (looksLikeLocaleOnlyLocation(merged.location)) {
+    merged.location = current.location && !looksLikeLocaleOnlyLocation(current.location) ? current.location : '';
+  }
   const now = new Date().toISOString();
   const linkedInConnectedAt =
     typeof existing?.linkedin_connected_at === 'string' ? existing.linkedin_connected_at : now;

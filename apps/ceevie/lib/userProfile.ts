@@ -86,8 +86,32 @@ export function hasLinkedInImport(profile: UserProfile): boolean {
   return Boolean(normalizeUserProfile(profile).linkedinConnectedAt);
 }
 
-export function profileSetupComplete(profile: UserProfile): boolean {
+export function looksLikeLocaleOnlyLocation(location: string): boolean {
+  const value = location.trim();
+  if (!value || value.includes(',')) return false;
+
+  try {
+    const displayNames = new Intl.DisplayNames(['en'], { type: 'region' });
+    for (const code of ['US', 'GB', 'CA', 'AU', 'IE', 'DE', 'FR', 'IN', 'NL', 'ES', 'IT']) {
+      if (displayNames.of(code) === value) return true;
+    }
+  } catch {
+    return false;
+  }
+
+  return false;
+}
+
+export function sanitizeProfileForSetup(profile: UserProfile): UserProfile {
   const safe = normalizeUserProfile(profile);
+  if (looksLikeLocaleOnlyLocation(safe.location)) {
+    return { ...safe, location: '' };
+  }
+  return safe;
+}
+
+export function profileSetupComplete(profile: UserProfile): boolean {
+  const safe = sanitizeProfileForSetup(profile);
   return Boolean(safe.fullName.trim() && safe.location.trim() && safe.headline.trim());
 }
 

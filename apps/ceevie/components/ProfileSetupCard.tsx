@@ -1,6 +1,8 @@
 'use client';
 
 import { FormEvent, useEffect, useState } from 'react';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { ConnectLinkedInButton } from '@/components/LinkedInSignInButton';
 import { UserAvatar } from '@/components/UserAvatar';
 import {
   PROFILE_FIELD_LABELS,
@@ -8,21 +10,32 @@ import {
   hasLinkedInImport,
   listLinkedInImportedFields,
   normalizeUserProfile,
+  sanitizeProfileForSetup,
   type UserProfile,
 } from '@/lib/userProfile';
 
 type ProfileSetupCardProps = {
   profile: UserProfile;
   saving?: boolean;
+  supabase?: SupabaseClient | null;
+  siteUrl?: string;
   onContinue: (profile: UserProfile) => Promise<boolean>;
+  onLinkedInImported?: () => void;
 };
 
-export function ProfileSetupCard({ profile, saving = false, onContinue }: ProfileSetupCardProps) {
-  const [draft, setDraft] = useState<UserProfile>(() => normalizeUserProfile(profile));
+export function ProfileSetupCard({
+  profile,
+  saving = false,
+  supabase,
+  siteUrl = '',
+  onContinue,
+  onLinkedInImported,
+}: ProfileSetupCardProps) {
+  const [draft, setDraft] = useState<UserProfile>(() => sanitizeProfileForSetup(profile));
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    setDraft(normalizeUserProfile(profile));
+    setDraft(sanitizeProfileForSetup(profile));
   }, [profile]);
 
   const firstName = getProfileFirstName(draft);
@@ -81,6 +94,21 @@ export function ProfileSetupCard({ profile, saving = false, onContinue }: Profil
         <p className="profile-setup-imported">
           From LinkedIn: {importedFields.join(' · ')}
         </p>
+      )}
+
+      {!linkedInConnected && supabase && siteUrl && (
+        <div className="profile-setup-linkedin">
+          <p className="profile-setup-linkedin-copy">
+            Connect LinkedIn to prefill your name, photo, and profile link.
+          </p>
+          <ConnectLinkedInButton
+            supabase={supabase}
+            siteUrl={siteUrl}
+            linked={false}
+            synced={false}
+            onConnected={onLinkedInImported}
+          />
+        </div>
       )}
 
       <form className="profile-setup-form" onSubmit={handleSubmit}>
