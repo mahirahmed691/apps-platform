@@ -5,11 +5,17 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "setup": "bash ../../scripts/setup.sh ceevie",
+    "setup:google": "bash ../../scripts/setup-google-auth.sh ceevie",
+    "fill-env": "node ../../scripts/fill-env.js ceevie",
+    "setup:prod": "bash ../../scripts/setup-ceevie-prod.sh",
+    "deploy:prod": "cd ../.. && vercel --prod"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.43.0",
     "@yourorg/app-core": "*",
+    "jspdf": "^4.2.1",
     "next": "^14.2.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",

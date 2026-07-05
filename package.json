@@ -8,8 +8,15 @@
   "scripts": {
     "build": "turbo run build",
     "dev": "turbo run dev",
+    "dev:ceevie": "npm run dev --workspace=ceevie",
     "lint": "turbo run lint",
-    "test": "turbo run test"
+    "test": "turbo run test",
+    "new-app": "./scripts/new-app.sh",
+    "fill-env": "node scripts/fill-env.js",
+    "sync-vercel-env": "node scripts/sync-vercel-env.js",
+    "setup": "./scripts/setup.sh",
+    "setup:ceevie-prod": "./scripts/setup-ceevie-prod.sh",
+    "setup:google-auth": "./scripts/setup-google-auth.sh"
   },
   "devDependencies": {
     "turbo": "^2.0.0"

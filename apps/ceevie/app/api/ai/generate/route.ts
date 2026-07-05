@@ -12,7 +12,7 @@ import {
 // from @yourorg/app-core and is fixed once, for every app, in one place.
 
 const AI_TIMEOUT_MS = 30_000;
-const FEATURE_NAME = '__FEATURE_NAME__'; // rename per feature
+const FEATURE_NAME = 'cv_builder';
 
 export async function POST(req: NextRequest) {
   const startTime = Date.now();
@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
-        max_tokens: 1024,
+        max_tokens: 4096,
         messages: [{ role: 'user', content: finalPrompt }],
       }),
       signal: controller.signal,

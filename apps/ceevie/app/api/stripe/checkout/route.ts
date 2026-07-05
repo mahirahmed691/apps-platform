@@ -12,9 +12,11 @@ export async function POST(req: NextRequest) {
   const { data: userData, error } = await db.auth.getUser(token);
   if (error || !userData.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const { priceId, successUrl, cancelUrl } = await req.json();
+  const body = await req.json();
+  const priceId = body.priceId || process.env.STRIPE_PRICE_ID;
+  const { successUrl, cancelUrl } = body;
   if (!priceId || !successUrl || !cancelUrl) {
-    return NextResponse.json({ error: 'Missing priceId, successUrl, or cancelUrl' }, { status: 400 });
+    return NextResponse.json({ error: 'Missing successUrl or cancelUrl, or STRIPE_PRICE_ID is not configured' }, { status: 400 });
   }
 
   const session = await createCheckoutSession(stripe, {

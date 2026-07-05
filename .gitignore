@@ -9,4 +9,7 @@ dist/
 .turbo
 .DS_Store
 .provisioning-stripe.json
-supabase/
+.provisioning.json
+supabase/.temp/
+supabase/.branches/
+*.tsbuildinfo

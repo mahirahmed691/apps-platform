@@ -1,7 +1,7 @@
 import Stripe from 'stripe';
 
 export function createStripeClient(secretKey: string): Stripe {
-  return new Stripe(secretKey, { apiVersion: '2024-06-20' });
+  return new Stripe(secretKey, { apiVersion: '2024-04-10' });
 }
 
 export async function createCheckoutSession(

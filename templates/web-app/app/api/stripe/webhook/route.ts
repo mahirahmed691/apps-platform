@@ -60,5 +60,3 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Processing failed' }, { status: 500 });
   }
 }
-
-export const config = { api: { bodyParser: false } };
