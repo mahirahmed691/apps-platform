@@ -176,6 +176,11 @@ export function useCvConversation(accessToken: string | undefined) {
     setInitialized(true);
   }, []);
 
+  const reopenSection = useCallback((sectionId: keyof CvAnswers) => {
+    setAnswers((prev) => ({ ...prev, [sectionId]: '' }));
+    setFinished(false);
+  }, []);
+
   return {
     messages,
     answers,
@@ -191,6 +196,7 @@ export function useCvConversation(accessToken: string | undefined) {
     sendMessage,
     updateAnswer,
     reset,
+    reopenSection,
     applyProfileContext,
   };
 }

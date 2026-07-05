@@ -7,11 +7,13 @@ import { LoadingScreen } from '@/components/LoadingScreen';
 import { SetupRequired } from '@/components/SetupRequired';
 import { useAuth } from '@/hooks/useAuth';
 import type { InviteRedemption, RoleBrief } from '@/lib/roleBrief';
+import { RecruiterAdvancedPanel } from '@/components/RecruiterAdvancedPanel';
 
 type BriefDetail = RoleBrief & { inviteUrl: string };
 
 function redemptionStatusLabel(status: InviteRedemption['status']) {
   if (status === 'approved') return 'Approved';
+  if (status === 'rejected') return 'Rejected';
   if (status === 'completed') return 'CV ready';
   return 'In progress';
 }
@@ -217,6 +219,28 @@ export default function RoleBriefDetailPage() {
           </ul>
         )}
       </section>
+
+      <RecruiterAdvancedPanel
+        accessToken={accessToken}
+        briefId={briefId}
+        redemptions={redemptions}
+        onRefresh={() => void load()}
+        branding={{
+          brandName: brief.brandName,
+          logoUrl: brief.logoUrl,
+          accentColor: brief.accentColor,
+          welcomeMessage: brief.welcomeMessage,
+        }}
+        onSaveBranding={async (values) => {
+          if (!accessToken) return;
+          await fetch(`/api/recruiter/briefs/${briefId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+            body: JSON.stringify(values),
+          });
+          await load();
+        }}
+      />
     </div>
   );
 }

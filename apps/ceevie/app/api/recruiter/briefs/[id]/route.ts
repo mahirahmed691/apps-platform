@@ -11,27 +11,62 @@ import {
 
 type RouteContext = { params: Promise<{ id: string }> };
 
-function parseBriefUpdate(body: unknown): { status?: RoleBriefStatus } | null {
+function parseBriefUpdate(body: unknown): {
+  status?: RoleBriefStatus;
+  brandName?: string;
+  logoUrl?: string;
+  accentColor?: string;
+  welcomeMessage?: string;
+} | null {
   if (!body || typeof body !== 'object') return null;
   const data = body as Record<string, unknown>;
-  if (data.status === undefined) return {};
+  const update: {
+    status?: RoleBriefStatus;
+    brandName?: string;
+    logoUrl?: string;
+    accentColor?: string;
+    welcomeMessage?: string;
+  } = {};
+
   if (data.status === 'draft' || data.status === 'active' || data.status === 'closed') {
-    return { status: data.status };
+    update.status = data.status;
+  } else if (data.status !== undefined) {
+    return null;
   }
-  return null;
+
+  if (typeof data.brandName === 'string') update.brandName = data.brandName.trim();
+  if (typeof data.logoUrl === 'string') update.logoUrl = data.logoUrl.trim();
+  if (typeof data.accentColor === 'string') update.accentColor = data.accentColor.trim();
+  if (typeof data.welcomeMessage === 'string') update.welcomeMessage = data.welcomeMessage.trim();
+
+  return update;
 }
 
-function parseRedemptionUpdate(
-  body: unknown
-): { redemptionId: string; status: RedemptionStatus; recruiterNotes?: string } | null {
+function parseRedemptionUpdate(body: unknown): {
+  redemptionId: string;
+  status?: RedemptionStatus;
+  recruiterNotes?: string;
+  pipelineStage?: string;
+  rejectionReason?: string;
+} | null {
   if (!body || typeof body !== 'object') return null;
   const data = body as Record<string, unknown>;
   if (typeof data.redemptionId !== 'string' || !data.redemptionId) return null;
-  if (data.status !== 'approved' && data.status !== 'completed' && data.status !== 'started') return null;
+
+  const status =
+    data.status === 'approved' ||
+    data.status === 'completed' ||
+    data.status === 'started' ||
+    data.status === 'rejected'
+      ? data.status
+      : undefined;
+
   return {
     redemptionId: data.redemptionId,
-    status: data.status,
+    status,
     recruiterNotes: typeof data.recruiterNotes === 'string' ? data.recruiterNotes.trim() : undefined,
+    pipelineStage: typeof data.pipelineStage === 'string' ? data.pipelineStage.trim() : undefined,
+    rejectionReason: typeof data.rejectionReason === 'string' ? data.rejectionReason.trim() : undefined,
   };
 }
 
@@ -110,14 +145,16 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
 
   const redemptionUpdate = parseRedemptionUpdate(body);
   if (redemptionUpdate) {
-    const patch: Record<string, unknown> = {
-      status: redemptionUpdate.status,
-    };
-    if (redemptionUpdate.recruiterNotes !== undefined) {
-      patch.recruiter_notes = redemptionUpdate.recruiterNotes;
-    }
-    if (redemptionUpdate.status === 'approved') {
-      patch.approved_at = new Date().toISOString();
+    const patch: Record<string, unknown> = {};
+    if (redemptionUpdate.status) patch.status = redemptionUpdate.status;
+    if (redemptionUpdate.recruiterNotes !== undefined) patch.recruiter_notes = redemptionUpdate.recruiterNotes;
+    if (redemptionUpdate.pipelineStage !== undefined) patch.pipeline_stage = redemptionUpdate.pipelineStage;
+    if (redemptionUpdate.rejectionReason !== undefined) patch.rejection_reason = redemptionUpdate.rejectionReason;
+    if (redemptionUpdate.status === 'approved') patch.approved_at = new Date().toISOString();
+    if (redemptionUpdate.status === 'rejected') patch.rejected_at = new Date().toISOString();
+
+    if (Object.keys(patch).length === 0) {
+      return NextResponse.json({ error: 'Nothing to update' }, { status: 400 });
     }
 
     const { data, error } = await auth.db
@@ -137,11 +174,18 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
   const briefUpdate = parseBriefUpdate(body);
   if (briefUpdate === null) return NextResponse.json({ error: 'Invalid update payload' }, { status: 400 });
 
-  if (!briefUpdate.status) return NextResponse.json({ error: 'Nothing to update' }, { status: 400 });
+  const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
+  if (briefUpdate.status) patch.status = briefUpdate.status;
+  if (briefUpdate.brandName !== undefined) patch.brand_name = briefUpdate.brandName;
+  if (briefUpdate.logoUrl !== undefined) patch.logo_url = briefUpdate.logoUrl;
+  if (briefUpdate.accentColor !== undefined) patch.accent_color = briefUpdate.accentColor;
+  if (briefUpdate.welcomeMessage !== undefined) patch.welcome_message = briefUpdate.welcomeMessage;
+
+  if (Object.keys(patch).length === 1) return NextResponse.json({ error: 'Nothing to update' }, { status: 400 });
 
   const { data, error } = await auth.db
     .from('role_briefs')
-    .update({ status: briefUpdate.status, updated_at: new Date().toISOString() })
+    .update(patch)
     .eq('id', id)
     .eq('recruiter_id', auth.user.id)
     .select('*')

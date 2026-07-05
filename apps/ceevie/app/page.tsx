@@ -9,6 +9,7 @@ import { ExperienceChat } from '@/components/ExperienceChat';
 import { MobileBottomNav } from '@/components/MobileBottomNav';
 import { ResultPanel } from '@/components/ResultPanel';
 import { ProfilePanel } from '@/components/ProfilePanel';
+import { StudioToolkit } from '@/components/StudioToolkit';
 import { AuroraBackground } from '@/components/AuroraBackground';
 import { LoadingScreen } from '@/components/LoadingScreen';
 import { SetupRequired } from '@/components/SetupRequired';
@@ -18,6 +19,7 @@ import { useCvDraft } from '@/hooks/useCvDraft';
 import { useRecruiter, useRoleBrief } from '@/hooks/useRecruiter';
 import { useUsage } from '@/hooks/useUsage';
 import { useUserProfile } from '@/hooks/useUserProfile';
+import { useStudioPreferences } from '@/hooks/useStudioPreferences';
 import { buildCvPrompt, isReadyToGenerate, countFilledSections, REQUIRED_CV_SECTIONS } from '@/lib/cvBuilder';
 import { syncLinkedInProfileFromClient } from '@/lib/linkedinSyncClient';
 import { profileNeedsLinkedInImport, profileSetupComplete, type UserProfile } from '@/lib/userProfile';
@@ -62,8 +64,11 @@ export default function Home() {
     sendMessage,
     updateAnswer,
     reset,
+    reopenSection,
     applyProfileContext,
   } = conversation;
+
+  const { prefs } = useStudioPreferences();
 
   const { usage, refresh: refreshUsage, upgrade, upgrading } = useUsage(accessToken);
   const { info: recruiterInfo } = useRecruiter(accessToken);
@@ -196,7 +201,7 @@ export default function Home() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${accessToken}`,
         },
-        body: JSON.stringify({ prompt: buildCvPrompt(answers, profile) }),
+        body: JSON.stringify({ prompt: buildCvPrompt(answers, profile, prefs.language), language: prefs.language }),
       });
 
       if (!response.ok) {
@@ -215,6 +220,18 @@ export default function Home() {
       const data = await response.json();
       setResult(data.result ?? '');
       refreshUsage();
+      if (accessToken && data.result) {
+        void fetch('/api/cv/exports', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+          body: JSON.stringify({ exportType: 'cv', label: answers.targetRole || 'Generated CV', content: data.result }),
+        });
+        void fetch('/api/cv/versions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+          body: JSON.stringify({ label: answers.targetRole || 'Latest CV', content: data.result, jobTarget: answers.targetRole }),
+        });
+      }
     } catch {
       setError('Something went wrong. Please try again.');
     } finally {
@@ -247,6 +264,13 @@ export default function Home() {
     const nextProfile = await loadProfile();
     if (nextProfile) applyProfileContext(nextProfile);
     setLinkedInImportFresh(true);
+  }
+
+  function handleApplyJob(job: { title?: string; company?: string; description?: string; requirements?: string }) {
+    const jobDescription = [job.title, job.company, job.description, job.requirements].filter(Boolean).join('\n\n');
+    updateAnswer('targetRole', job.title ?? answers.targetRole);
+    updateAnswer('jobDescription', jobDescription);
+    setNotice('Job details applied — your interview is now tailored to this posting.');
   }
 
   async function handleProfileSetupComplete(next: UserProfile): Promise<boolean> {
@@ -324,6 +348,16 @@ export default function Home() {
           <ResultPanel
             result={result}
             generating={generating}
+            accessToken={accessToken}
+            answers={answers}
+            language={prefs.language}
+            onResultChange={setResult}
+            onApplyJob={handleApplyJob}
+            onReopenSection={(sectionId) => {
+              reopenSection(sectionId);
+              setShowResult(false);
+              setMobilePanel('chat');
+            }}
             onStartOver={handleStartOver}
             onBackToEdit={handleBackToEdit}
             onRegenerate={handleGenerate}
@@ -334,6 +368,7 @@ export default function Home() {
             finished={finished}
             generating={generating}
             onUpdateAnswer={updateAnswer}
+            onReopenSection={reopenSection}
           />
         )}
 
@@ -345,6 +380,20 @@ export default function Home() {
           onPreview={() => setMobilePanel('preview')}
         />
       </div>
+
+      {!displayResult ? (
+        <div className="workspace-toolkit-wrap">
+          <StudioToolkit
+            accessToken={accessToken}
+            cv={result}
+            answers={answers}
+            language={prefs.language}
+            onCvUpdated={setResult}
+            onApplyJob={handleApplyJob}
+            onReopenSection={reopenSection}
+          />
+        </div>
+      ) : null}
 
       {notice && (
         <div className="workspace-notice" role="status">
@@ -374,6 +423,7 @@ export default function Home() {
         siteUrl={getOAuthSiteUrl()}
         onClose={() => setProfileOpen(false)}
         onSave={saveProfile}
+        accessToken={accessToken}
         linkedInLinked={session?.user ? userHasLinkedInIdentity(session.user) : false}
         onLinkedInSynced={() => {
           void loadProfile().then((nextProfile) => {

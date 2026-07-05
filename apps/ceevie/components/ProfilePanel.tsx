@@ -13,6 +13,7 @@ type ProfilePanelProps = {
   saveStatus: ProfileSaveStatus;
   supabase: SupabaseClient | null;
   siteUrl: string;
+  accessToken?: string;
   linkedInLinked?: boolean;
   onClose: () => void;
   onSave: (profile: UserProfile) => Promise<boolean>;
@@ -26,6 +27,7 @@ export function ProfilePanel({
   supabase,
   siteUrl,
   linkedInLinked = false,
+  accessToken,
   onClose,
   onSave,
   onLinkedInSynced,
@@ -200,6 +202,43 @@ export function ProfilePanel({
               {error}
             </p>
           )}
+
+          {accessToken ? (
+            <div className="profile-privacy-block">
+              <h3>Privacy & data</h3>
+              <p className="profile-sheet-copy">Export or delete your Ceevie data at any time.</p>
+              <div className="profile-sheet-actions profile-sheet-actions-stack">
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={async () => {
+                    const res = await fetch('/api/account/data', { headers: { Authorization: `Bearer ${accessToken}` } });
+                    const data = await res.json();
+                    const blob = new Blob([JSON.stringify(data.export, null, 2)], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.download = 'ceevie-profile-export.json';
+                    link.click();
+                    URL.revokeObjectURL(url);
+                  }}
+                >
+                  Export my data
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm app-nav-sheet-link-danger"
+                  onClick={async () => {
+                    if (!window.confirm('Delete all saved CV drafts, exports, and profile fields?')) return;
+                    await fetch('/api/account/data', { method: 'DELETE', headers: { Authorization: `Bearer ${accessToken}` } });
+                    onClose();
+                  }}
+                >
+                  Delete my data
+                </button>
+              </div>
+            </div>
+          ) : null}
 
           <div className="profile-sheet-actions">
             <button type="button" className="btn btn-ghost" onClick={onClose}>

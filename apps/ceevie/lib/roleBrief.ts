@@ -2,7 +2,7 @@ import { randomBytes } from 'crypto';
 import { getSiteUrl } from '@/lib/site';
 
 export type RoleBriefStatus = 'draft' | 'active' | 'closed';
-export type RedemptionStatus = 'started' | 'completed' | 'approved';
+export type RedemptionStatus = 'started' | 'completed' | 'approved' | 'rejected';
 
 export type RoleBrief = {
   id: string;
@@ -14,6 +14,10 @@ export type RoleBrief = {
   inviteToken: string;
   status: RoleBriefStatus;
   expiresAt: string | null;
+  brandName: string;
+  logoUrl: string;
+  accentColor: string;
+  welcomeMessage: string;
   createdAt: string;
   updatedAt: string;
 };
@@ -24,6 +28,8 @@ export type InviteRedemption = {
   candidateUserId: string;
   status: RedemptionStatus;
   recruiterNotes: string;
+  pipelineStage?: string;
+  rejectionReason?: string;
   redeemedAt: string;
   completedAt: string | null;
   approvedAt: string | null;
@@ -80,6 +86,10 @@ export function briefRowToRoleBrief(row: Record<string, unknown>): RoleBrief {
     inviteToken: typeof row.invite_token === 'string' ? row.invite_token : '',
     status: (row.status as RoleBriefStatus) ?? 'active',
     expiresAt: typeof row.expires_at === 'string' ? row.expires_at : null,
+    brandName: typeof row.brand_name === 'string' ? row.brand_name : '',
+    logoUrl: typeof row.logo_url === 'string' ? row.logo_url : '',
+    accentColor: typeof row.accent_color === 'string' ? row.accent_color : '#ffffff',
+    welcomeMessage: typeof row.welcome_message === 'string' ? row.welcome_message : '',
     createdAt: typeof row.created_at === 'string' ? row.created_at : new Date().toISOString(),
     updatedAt: typeof row.updated_at === 'string' ? row.updated_at : new Date().toISOString(),
   };
@@ -94,6 +104,8 @@ export function redemptionRowToInviteRedemption(row: Record<string, unknown>): I
     candidateUserId: String(row.candidate_user_id),
     status: (row.status as RedemptionStatus) ?? 'started',
     recruiterNotes: typeof row.recruiter_notes === 'string' ? row.recruiter_notes : '',
+    pipelineStage: typeof row.pipeline_stage === 'string' ? row.pipeline_stage : 'applied',
+    rejectionReason: typeof row.rejection_reason === 'string' ? row.rejection_reason : '',
     redeemedAt: typeof row.redeemed_at === 'string' ? row.redeemed_at : new Date().toISOString(),
     completedAt: typeof row.completed_at === 'string' ? row.completed_at : null,
     approvedAt: typeof row.approved_at === 'string' ? row.approved_at : null,

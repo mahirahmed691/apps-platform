@@ -1,10 +1,5 @@
-import {
-  formatProfileContactBlock,
-  getProfileFirstName,
-  hasLinkedInImport,
-  normalizeUserProfile,
-  type UserProfile,
-} from '@/lib/userProfile';
+import { formatProfileContactBlock, getProfileFirstName, hasLinkedInImport, normalizeUserProfile, type UserProfile } from '@/lib/userProfile';
+import { orderSectionsForRole } from '@/lib/studioFeatures';
 
 export type CvAnswers = {
   fullName: string;
@@ -226,9 +221,11 @@ export function nextMessageId(): string {
   return `msg-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
-export function buildCvPrompt(answers: CvAnswers, profile?: UserProfile | null): string {
-  const sections = (Object.keys(ANSWER_LABELS) as (keyof CvAnswers)[])
-    .filter((key) => key !== 'jobDescription' && answers[key].trim())
+export function buildCvPrompt(answers: CvAnswers, profile?: UserProfile | null, language = 'en'): string {
+  const orderedKeys = orderSectionsForRole(answers.targetRole).filter(
+    (key) => key !== 'jobDescription' && answers[key].trim()
+  );
+  const sections = orderedKeys
     .map((key) => `### ${ANSWER_LABELS[key]}\n${answers[key].trim()}`)
     .join('\n\n');
 
@@ -262,6 +259,7 @@ export function buildCvPrompt(answers: CvAnswers, profile?: UserProfile | null):
     '- Structure: Name at top, Professional Summary, Experience (reverse chronological), Skills, Education, Additional (if relevant).',
     '- Use bullet points for achievements; quantify impact where the user provided numbers.',
     '- Keep it to 1–2 pages worth of content (roughly 400–700 words).',
+    `- Write in ${language === 'en' ? 'clear British English' : language}.`,
     '- Output plain text only — no markdown headers with #, no commentary before or after the CV.',
     '',
     contactBlock ? '--- Contact details ---\n' + contactBlock + '\n' : '',

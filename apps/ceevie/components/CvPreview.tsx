@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ANSWER_LABELS, REQUIRED_CV_SECTIONS, type CvAnswers } from '@/lib/cvBuilder';
 import { useStudioPreferences } from '@/hooks/useStudioPreferences';
 import { playCaptureChime } from '@/lib/studioSounds';
+import { PreviewChecklist } from '@/components/PreviewChecklist';
 
 const DOC_SECTIONS: (keyof CvAnswers)[] = ['achievements', 'experience', 'skills', 'education'];
 
@@ -19,9 +20,10 @@ type CvPreviewProps = {
   finished: boolean;
   generating: boolean;
   onUpdateAnswer?: (key: keyof CvAnswers, value: string) => void;
+  onReopenSection?: (key: keyof CvAnswers) => void;
 };
 
-export function CvPreview({ answers, finished, generating, onUpdateAnswer }: CvPreviewProps) {
+export function CvPreview({ answers, finished, generating, onUpdateAnswer, onReopenSection }: CvPreviewProps) {
   const { prefs, hydrated } = useStudioPreferences();
   const filledSections = REQUIRED_CV_SECTIONS.filter((key) => answers[key].trim()).length;
   const progressPercent = Math.min((filledSections / REQUIRED_CV_SECTIONS.length) * 100, 100);
@@ -105,6 +107,8 @@ export function CvPreview({ answers, finished, generating, onUpdateAnswer }: CvP
           <div className="preview-cv-progress-fill" style={{ width: `${progressPercent}%` }} />
         </div>
       </div>
+
+      <PreviewChecklist answers={answers} onReopenSection={onReopenSection} />
 
       <div className="preview-paper-stage">
         {captureLabel && (

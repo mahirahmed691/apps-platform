@@ -3,9 +3,10 @@ import { ANSWER_LABELS, REQUIRED_CV_SECTIONS, type CvAnswers } from '@/lib/cvBui
 type PreviewChecklistProps = {
   answers: CvAnswers;
   showEmptyHint?: boolean;
+  onReopenSection?: (sectionId: keyof CvAnswers) => void;
 };
 
-export function PreviewChecklist({ answers, showEmptyHint = false }: PreviewChecklistProps) {
+export function PreviewChecklist({ answers, showEmptyHint = false, onReopenSection }: PreviewChecklistProps) {
   const filled = REQUIRED_CV_SECTIONS.filter((key) => answers[key].trim()).length;
 
   return (
@@ -35,6 +36,11 @@ export function PreviewChecklist({ answers, showEmptyHint = false }: PreviewChec
                 ) : null}
               </span>
               <span>{ANSWER_LABELS[key]}</span>
+              {done && onReopenSection ? (
+                <button type="button" className="btn btn-ghost btn-sm preview-checklist-redo" onClick={() => onReopenSection(key)}>
+                  Re-record
+                </button>
+              ) : null}
             </li>
           );
         })}

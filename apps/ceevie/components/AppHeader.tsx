@@ -153,6 +153,9 @@ export function AppHeader({
                   Voice setup
                 </button>
               )}
+              <a className="app-nav-sheet-link" href="/mobile" onClick={closeMenu}>
+                Phone as mic
+              </a>
               {showRecruiterLink && (
                 <a className="app-nav-sheet-link" href="/recruiter" onClick={closeMenu}>
                   Recruiter dashboard

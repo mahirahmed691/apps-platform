@@ -17,6 +17,7 @@ export default function InviteLandingPage() {
   const accessToken = session?.access_token;
 
   const [brief, setBrief] = useState<PublicRoleBrief | null>(null);
+  const [branding, setBranding] = useState<{ brandName?: string; logoUrl?: string; accentColor?: string; welcomeMessage?: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [accepting, setAccepting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -38,6 +39,7 @@ export default function InviteLandingPage() {
       }
 
       setBrief(data.brief);
+      setBranding(data.branding ?? null);
     } catch {
       setError('Could not load this invite.');
     } finally {
@@ -98,12 +100,14 @@ export default function InviteLandingPage() {
   }
 
   return (
-    <div className="invite-shell ceevie-dark-shell">
-      <section className="invite-card">
-        <p className="invite-kicker">You&apos;re invited to build a tailored CV</p>
+    <div className="invite-shell ceevie-dark-shell" style={branding?.accentColor ? { ['--invite-accent' as string]: branding.accentColor } : undefined}>
+      <section className="invite-card invite-card-branded">
+        {branding?.logoUrl ? <img src={branding.logoUrl} alt="" className="invite-brand-logo" /> : null}
+        <p className="invite-kicker">{branding?.brandName || "You're invited to build a tailored CV"}</p>
         <h1>{brief.title}</h1>
         {brief.company ? <p className="invite-company">{brief.company}</p> : null}
 
+        {branding?.welcomeMessage ? <p className="invite-copy">{branding.welcomeMessage}</p> : null}
         {brief.description ? <p className="invite-copy">{brief.description}</p> : null}
 
         {brief.requirements ? (

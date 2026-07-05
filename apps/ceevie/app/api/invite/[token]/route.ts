@@ -17,7 +17,7 @@ export async function GET(_req: NextRequest, context: RouteContext) {
   const db = createSupabaseServer(url, serviceRoleKey);
   const { data, error } = await db
     .from('role_briefs')
-    .select('id, title, company, description, requirements, status, expires_at')
+    .select('id, title, company, description, requirements, status, expires_at, brand_name, logo_url, accent_color, welcome_message')
     .eq('invite_token', token.trim())
     .maybeSingle();
 
@@ -32,5 +32,13 @@ export async function GET(_req: NextRequest, context: RouteContext) {
     return NextResponse.json({ error: 'This invite has expired' }, { status: 410 });
   }
 
-  return NextResponse.json({ brief });
+  return NextResponse.json({
+    brief,
+    branding: {
+      brandName: typeof data.brand_name === 'string' ? data.brand_name : '',
+      logoUrl: typeof data.logo_url === 'string' ? data.logo_url : '',
+      accentColor: typeof data.accent_color === 'string' ? data.accent_color : '#ffffff',
+      welcomeMessage: typeof data.welcome_message === 'string' ? data.welcome_message : '',
+    },
+  });
 }

@@ -2,10 +2,18 @@
 
 import { useRef, useState } from 'react';
 import { downloadCvPdf } from '../lib/exportCvPdf';
+import { StudioToolkit } from '@/components/StudioToolkit';
+import type { CvAnswers } from '@/lib/cvBuilder';
 
 type ResultPanelProps = {
   result: string | null;
   generating: boolean;
+  accessToken?: string;
+  answers?: CvAnswers;
+  language?: string;
+  onResultChange?: (next: string) => void;
+  onApplyJob?: (job: { title?: string; company?: string; description?: string; requirements?: string }) => void;
+  onReopenSection?: (sectionId: keyof CvAnswers) => void;
   onStartOver?: () => void;
   onBackToEdit?: () => void;
   onRegenerate?: () => void;
@@ -20,6 +28,12 @@ function wordCount(text: string): number {
 export function ResultPanel({
   result,
   generating,
+  accessToken,
+  answers,
+  language = 'en',
+  onResultChange,
+  onApplyJob,
+  onReopenSection,
   onStartOver,
   onBackToEdit,
   onRegenerate,
@@ -126,6 +140,17 @@ export function ResultPanel({
               <pre className="result-text">{result}</pre>
             </div>
           </div>
+          {answers && onResultChange && onApplyJob ? (
+            <StudioToolkit
+              accessToken={accessToken}
+              cv={result}
+              answers={answers}
+              language={language}
+              onCvUpdated={onResultChange}
+              onApplyJob={onApplyJob}
+              onReopenSection={onReopenSection}
+            />
+          ) : null}
         </>
       )}
     </aside>
