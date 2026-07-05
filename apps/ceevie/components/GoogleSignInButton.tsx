@@ -9,6 +9,7 @@ type GoogleSignInButtonProps = {
   siteUrl: string;
   label?: string;
   className?: string;
+  onBeforeSignIn?: () => void;
 };
 
 export function GoogleSignInButton({
@@ -16,6 +17,7 @@ export function GoogleSignInButton({
   siteUrl,
   label = 'Continue with Google',
   className = 'btn btn-google',
+  onBeforeSignIn,
 }: GoogleSignInButtonProps) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -24,6 +26,7 @@ export function GoogleSignInButton({
     setError(null);
     setSubmitting(true);
     try {
+      onBeforeSignIn?.();
       const { error: oauthError } = await signInWithGoogle(supabase, siteUrl);
       if (oauthError) setError(getAuthErrorMessage(oauthError));
     } finally {

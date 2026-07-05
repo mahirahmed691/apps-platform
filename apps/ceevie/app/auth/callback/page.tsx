@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getSupabaseClient } from '@/lib/supabase';
 import { syncLinkedInProfileFromClient } from '@/lib/linkedinSyncClient';
+import { resolvePostAuthDestination } from '@/lib/recruiterIntent';
 
 function parseHashTokens(): { access_token: string; refresh_token: string } | null {
   if (typeof window === 'undefined') return null;
@@ -105,7 +106,11 @@ export default function AuthCallbackPage() {
       }
 
       setMessage('Success — redirecting…');
-      router.replace('/');
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const destination = await resolvePostAuthDestination(session?.access_token);
+      router.replace(destination);
       router.refresh();
     }
 

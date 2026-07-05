@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthUser } from '@/lib/apiAuth';
 import type { ChatMessage, CvAnswers } from '@/lib/cvBuilder';
+import { publicBriefFromRow } from '@/lib/roleBrief';
 
 export type CvDraftPayload = {
   answers: CvAnswers;
@@ -50,12 +51,22 @@ export async function GET(req: NextRequest) {
 
   const { data, error } = await auth.db
     .from('cv_drafts')
-    .select('answers, messages, finished, turn_count, generated_cv, updated_at')
+    .select('answers, messages, finished, turn_count, generated_cv, updated_at, active_brief_id')
     .eq('user_id', auth.user.id)
     .maybeSingle();
 
   if (error) return NextResponse.json({ error: 'Failed to load draft' }, { status: 500 });
   if (!data) return NextResponse.json({ draft: null });
+
+  let activeBrief = null;
+  if (data.active_brief_id) {
+    const { data: briefRow } = await auth.db
+      .from('role_briefs')
+      .select('id, title, company, description, requirements, status, expires_at')
+      .eq('id', data.active_brief_id)
+      .maybeSingle();
+    if (briefRow) activeBrief = publicBriefFromRow(briefRow);
+  }
 
   return NextResponse.json({
     draft: {
@@ -65,6 +76,8 @@ export async function GET(req: NextRequest) {
       turnCount: data.turn_count,
       generatedCv: data.generated_cv ?? null,
       updatedAt: data.updated_at,
+      activeBriefId: data.active_brief_id ?? null,
+      activeBrief,
     },
   });
 }
@@ -83,6 +96,14 @@ export async function PUT(req: NextRequest) {
   const draft = parseDraftBody(body);
   if (!draft) return NextResponse.json({ error: 'Invalid draft payload' }, { status: 400 });
 
+  const now = new Date().toISOString();
+
+  const { data: existingDraft } = await auth.db
+    .from('cv_drafts')
+    .select('active_brief_id, finished, generated_cv')
+    .eq('user_id', auth.user.id)
+    .maybeSingle();
+
   const { error } = await auth.db.from('cv_drafts').upsert(
     {
       user_id: auth.user.id,
@@ -91,12 +112,35 @@ export async function PUT(req: NextRequest) {
       finished: draft.finished,
       turn_count: draft.turnCount,
       generated_cv: draft.generatedCv ?? null,
-      updated_at: new Date().toISOString(),
+      active_brief_id: existingDraft?.active_brief_id ?? null,
+      updated_at: now,
     },
     { onConflict: 'user_id' }
   );
 
   if (error) return NextResponse.json({ error: 'Failed to save draft' }, { status: 500 });
+
+  const activeBriefId = existingDraft?.active_brief_id;
+  const generatedCv = draft.generatedCv?.trim() ?? '';
+  const hadGeneratedCv =
+    typeof existingDraft?.generated_cv === 'string' && existingDraft.generated_cv.trim().length > 0;
+
+  if (activeBriefId && generatedCv && !hadGeneratedCv) {
+    await auth.db
+      .from('invite_redemptions')
+      .update({ status: 'completed', completed_at: now })
+      .eq('brief_id', activeBriefId)
+      .eq('candidate_user_id', auth.user.id)
+      .in('status', ['started', 'completed']);
+  } else if (activeBriefId && draft.finished && !existingDraft?.finished) {
+    await auth.db
+      .from('invite_redemptions')
+      .update({ status: 'completed', completed_at: now })
+      .eq('brief_id', activeBriefId)
+      .eq('candidate_user_id', auth.user.id)
+      .eq('status', 'started');
+  }
+
   return NextResponse.json({ ok: true });
 }
 

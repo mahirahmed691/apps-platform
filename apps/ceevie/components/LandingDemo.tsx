@@ -5,6 +5,7 @@ export function LandingDemo() {
     <div className="landing-demo" aria-hidden="true">
       <div className="landing-demo-studio">
         <div className="landing-demo-panel landing-demo-chat">
+          <span className="landing-demo-panel-label">Interview</span>
           <div className="landing-demo-bar landing-demo-bar-dark" />
           <div className="landing-demo-bar landing-demo-bar-dark landing-demo-bar-short" />
           <div className="landing-demo-mic">
@@ -12,12 +13,13 @@ export function LandingDemo() {
             <span className="landing-demo-mic-core" />
           </div>
           <div className="landing-demo-wave">
-            {Array.from({ length: 7 }).map((_, i) => (
+            {Array.from({ length: 5 }).map((_, i) => (
               <span key={i} style={{ animationDelay: `${i * 0.08}s` }} />
             ))}
           </div>
         </div>
         <div className="landing-demo-panel landing-demo-doc">
+          <span className="landing-demo-panel-label landing-demo-panel-label-light">Your CV</span>
           <div className="landing-demo-paper">
             <div className="landing-demo-line landing-demo-line-title" />
             <div className="landing-demo-line landing-demo-line-sub" />

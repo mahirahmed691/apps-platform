@@ -276,7 +276,8 @@ export function buildChatPrompt(
   messages: ChatMessage[],
   answers: CvAnswers,
   latestUserMessage?: string,
-  profile?: UserProfile | null
+  profile?: UserProfile | null,
+  roleBrief?: { title: string; company: string; description: string; requirements: string } | null
 ): string {
   const transcript = messages
     .map((m) => `${m.role === 'assistant' ? 'Interviewer' : 'Candidate'}: ${m.content}`)
@@ -301,6 +302,20 @@ export function buildChatPrompt(
           .filter(Boolean)
           .join('\n')
       : '';
+
+  const roleBriefBlock = roleBrief
+    ? [
+        '',
+        '--- Role brief from recruiter (tailor all questions and CV notes to this role) ---',
+        roleBrief.title.trim() ? `Role: ${roleBrief.title.trim()}` : '',
+        roleBrief.company.trim() ? `Company: ${roleBrief.company.trim()}` : '',
+        roleBrief.description.trim() ? roleBrief.description.trim() : '',
+        roleBrief.requirements.trim() ? `Requirements:\n${roleBrief.requirements.trim()}` : '',
+        'Ask follow-ups that surface evidence relevant to this brief. Prefer concrete metrics and responsibilities that match the posting.',
+      ]
+        .filter(Boolean)
+        .join('\n')
+    : '';
 
   return [
     'You are Ceevie, a warm UK CV coach interviewing a job seeker.',
@@ -332,6 +347,7 @@ export function buildChatPrompt(
     'JSON shape:',
     '{"ready":boolean,"nextQuestion":string|null,"hint":string,"placeholder":string,"acknowledgment":string,"suggestions":["…"],"fieldUpdates":{"fullName":"","targetRole":"","recentRole":"","achievements":"","experience":"","skills":"","education":"","extras":"","jobDescription":""}}',
     profileBlock,
+    roleBriefBlock,
     '',
     '--- Captured so far ---',
     captured || '(nothing yet)',

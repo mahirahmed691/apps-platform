@@ -10,6 +10,7 @@ import {
   hasLinkedInImport,
   listLinkedInImportedFields,
   normalizeUserProfile,
+  profileNeedsLinkedInImport,
   sanitizeProfileForSetup,
   type UserProfile,
 } from '@/lib/userProfile';
@@ -41,6 +42,7 @@ export function ProfileSetupCard({
   const firstName = getProfileFirstName(draft);
   const importedFields = listLinkedInImportedFields(profile);
   const linkedInConnected = hasLinkedInImport(profile);
+  const linkedInNeedsRefresh = linkedInConnected && profileNeedsLinkedInImport(profile);
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -96,16 +98,18 @@ export function ProfileSetupCard({
         </p>
       )}
 
-      {!linkedInConnected && supabase && siteUrl && (
+      {supabase && siteUrl && (!linkedInConnected || linkedInNeedsRefresh) && (
         <div className="profile-setup-linkedin">
           <p className="profile-setup-linkedin-copy">
-            Connect LinkedIn to prefill your name, photo, and profile link.
+            {linkedInNeedsRefresh
+              ? 'Re-authorize LinkedIn to import your headline and profile URL, then add your location below.'
+              : 'Connect LinkedIn to prefill your name, photo, and profile link.'}
           </p>
           <ConnectLinkedInButton
             supabase={supabase}
             siteUrl={siteUrl}
-            linked={false}
-            synced={false}
+            linked={linkedInConnected}
+            synced={linkedInConnected}
             onConnected={onLinkedInImported}
           />
         </div>

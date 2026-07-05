@@ -131,6 +131,29 @@ export async function POST(req: NextRequest) {
     .maybeSingle();
   const profile = profileRow ? rowToProfile(profileRow, auth.user.email ?? '') : null;
 
+  let roleBrief: { title: string; company: string; description: string; requirements: string } | null = null;
+  const { data: draftRow } = await auth.db
+    .from('cv_drafts')
+    .select('active_brief_id')
+    .eq('user_id', auth.user.id)
+    .maybeSingle();
+
+  if (draftRow?.active_brief_id) {
+    const { data: briefRow } = await auth.db
+      .from('role_briefs')
+      .select('title, company, description, requirements, status')
+      .eq('id', draftRow.active_brief_id)
+      .maybeSingle();
+    if (briefRow && briefRow.status === 'active') {
+      roleBrief = {
+        title: typeof briefRow.title === 'string' ? briefRow.title : '',
+        company: typeof briefRow.company === 'string' ? briefRow.company : '',
+        description: typeof briefRow.description === 'string' ? briefRow.description : '',
+        requirements: typeof briefRow.requirements === 'string' ? briefRow.requirements : '',
+      };
+    }
+  }
+
   try {
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -142,7 +165,7 @@ export async function POST(req: NextRequest) {
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
         max_tokens: 768,
-        messages: [{ role: 'user', content: buildChatPrompt(messages, answers, userMessage, profile) }],
+        messages: [{ role: 'user', content: buildChatPrompt(messages, answers, userMessage, profile, roleBrief) }],
       }),
       signal: controller.signal,
     });

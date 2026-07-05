@@ -3,7 +3,7 @@ type VoiceListeningIndicatorProps = {
   active: boolean;
 };
 
-const BAR_DELAYS = [0, 0.08, 0.16, 0.05, 0.12, 0.2, 0.1];
+const BAR_DELAYS = [0, 0.07, 0.14, 0.05, 0.11];
 
 export function VoiceListeningIndicator({ active }: VoiceListeningIndicatorProps) {
   if (!active) return null;
@@ -14,7 +14,7 @@ export function VoiceListeningIndicator({ active }: VoiceListeningIndicatorProps
         <span
           key={index}
           className="voice-wave-bar"
-          style={{ animationDelay: `${delay}s`, animationDuration: `${0.72 + (index % 3) * 0.08}s` }}
+          style={{ animationDelay: `${delay}s`, animationDuration: `${0.68 + (index % 2) * 0.1}s` }}
         />
       ))}
     </div>

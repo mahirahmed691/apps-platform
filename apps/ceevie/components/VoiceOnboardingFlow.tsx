@@ -74,12 +74,7 @@ export function VoiceOnboardingFlow({
 
         <div className="voice-onboarding-device">
           <div className={`voice-onboarding-orb ${voice.listening ? 'voice-onboarding-orb-active' : ''}`}>
-            {voice.listening && (
-              <>
-                <span aria-hidden="true" />
-                <span aria-hidden="true" />
-              </>
-            )}
+            {voice.listening && <span aria-hidden="true" />}
             <button
               type="button"
               className="voice-onboarding-mic"
@@ -108,11 +103,18 @@ export function VoiceOnboardingFlow({
               )}
             </button>
           </div>
-          <p className="voice-onboarding-mic-label">{micLabel}</p>
+          <div className="voice-onboarding-device-meta">
+            <p className="voice-onboarding-mic-label">{micLabel}</p>
+            {(voice.interimText || transcript) && (
+              <p className="voice-onboarding-live" aria-live="polite">
+                {voice.interimText || transcript}
+              </p>
+            )}
+          </div>
         </div>
       </div>
 
-      {(transcript || voice.interimText) && (
+      {(transcript || voice.interimText) && step !== 'mic' && step !== 'name' && (
         <div className="voice-onboarding-transcript" aria-live="polite">
           <span>{voice.listening || voice.transcribing ? 'Hearing' : 'Captured'}</span>
           <p>{voice.interimText || transcript}</p>

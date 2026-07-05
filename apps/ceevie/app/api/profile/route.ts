@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthUser } from '@/lib/apiAuth';
-import type { UserProfile } from '@/lib/userProfile';
+import { looksLikeLocaleOnlyLocation, sanitizeProfileForSetup, type UserProfile } from '@/lib/userProfile';
 
 const MAX_FIELD_LENGTH = 200;
 const MAX_URL_LENGTH = 500;
@@ -64,8 +64,18 @@ export async function GET(req: NextRequest) {
   if (error) return NextResponse.json({ error: 'Failed to load profile' }, { status: 500 });
   if (!data) return NextResponse.json({ profile: null });
 
+  const rawProfile = rowToProfile(data, auth.user.email ?? '');
+  const profile = sanitizeProfileForSetup(rawProfile);
+
+  if (rawProfile.location !== profile.location) {
+    await auth.db
+      .from('profiles')
+      .update({ location: profile.location, profile_updated_at: new Date().toISOString() })
+      .eq('id', auth.user.id);
+  }
+
   return NextResponse.json({
-    profile: rowToProfile(data, auth.user.email ?? ''),
+    profile,
     updatedAt: data.profile_updated_at ?? null,
     linkedinConnectedAt: data.linkedin_connected_at ?? null,
   });
@@ -85,12 +95,15 @@ export async function PUT(req: NextRequest) {
   const updates = parseProfileBody(body);
   if (!updates) return NextResponse.json({ error: 'Invalid profile payload' }, { status: 400 });
 
+  const location =
+    updates.location && looksLikeLocaleOnlyLocation(updates.location) ? '' : (updates.location ?? '');
+
   const { data, error } = await auth.db
     .from('profiles')
     .update({
       full_name: updates.fullName ?? '',
       phone: updates.phone ?? '',
-      location: updates.location ?? '',
+      location,
       linkedin_url: updates.linkedinUrl ?? '',
       portfolio_url: updates.portfolioUrl ?? '',
       headline: updates.headline ?? '',

@@ -9,11 +9,13 @@ import { ExperienceChat } from '@/components/ExperienceChat';
 import { MobileBottomNav } from '@/components/MobileBottomNav';
 import { ResultPanel } from '@/components/ResultPanel';
 import { ProfilePanel } from '@/components/ProfilePanel';
+import { AuroraBackground } from '@/components/AuroraBackground';
 import { LoadingScreen } from '@/components/LoadingScreen';
 import { SetupRequired } from '@/components/SetupRequired';
 import { useAuth } from '@/hooks/useAuth';
 import { useCvConversation } from '@/hooks/useCvConversation';
 import { useCvDraft } from '@/hooks/useCvDraft';
+import { useRecruiter, useRoleBrief } from '@/hooks/useRecruiter';
 import { useUsage } from '@/hooks/useUsage';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { buildCvPrompt, isReadyToGenerate, countFilledSections, REQUIRED_CV_SECTIONS } from '@/lib/cvBuilder';
@@ -64,6 +66,8 @@ export default function Home() {
   } = conversation;
 
   const { usage, refresh: refreshUsage, upgrade, upgrading } = useUsage(accessToken);
+  const { info: recruiterInfo } = useRecruiter(accessToken);
+  const { activeBrief, loadFromDraft: loadActiveBrief } = useRoleBrief(accessToken);
   const { profile, loaded: profileLoaded, saveStatus: profileSaveStatus, saveProfile, patchProfile, loadProfile } =
     useUserProfile(accessToken);
 
@@ -92,8 +96,9 @@ export default function Home() {
       } else {
         markInitialized();
       }
+      void loadActiveBrief();
     });
-  }, [accessToken, initialized, loadDraft, restoreDraft, markInitialized]);
+  }, [accessToken, initialized, loadDraft, restoreDraft, markInitialized, loadActiveBrief]);
 
   useEffect(() => {
     if (!initialized || !profileLoaded || profilePrefilledRef.current) return;
@@ -147,6 +152,14 @@ export default function Home() {
       setError('LinkedIn connected, but we could not import your details. Try Refresh from LinkedIn in Profile.');
     }
   }, [router, loadProfile, applyProfileContext]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (new URLSearchParams(window.location.search).get('invite') !== 'accepted') return;
+    setNotice('Role brief applied. Your interview is tailored to this opportunity.');
+    void loadActiveBrief();
+    router.replace('/', { scroll: false });
+  }, [router, loadActiveBrief]);
 
   async function handleSend(text: string) {
     setError(null);
@@ -255,6 +268,7 @@ export default function Home() {
 
   return (
     <div className="app-shell studio-mode">
+      <AuroraBackground />
       <AppHeader
         email={session?.user?.email}
         displayName={profile.fullName || undefined}
@@ -269,6 +283,7 @@ export default function Home() {
         filledSections={filledSections}
         totalSections={REQUIRED_CV_SECTIONS.length}
         finished={finished}
+        showRecruiterLink={recruiterInfo?.isRecruiter}
       />
 
       <div className={`workspace mobile-panel-${mobilePanel}`}>
@@ -278,6 +293,7 @@ export default function Home() {
           profileLoaded={profileLoaded}
           profileSaving={profileSaveStatus === 'saving'}
           linkedInImportFresh={linkedInImportFresh}
+          roleBrief={activeBrief}
           messages={messages}
           answers={answers}
           finished={finished}

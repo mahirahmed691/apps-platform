@@ -5,13 +5,101 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { getAuthErrorMessage, isAlreadyRegistered } from '@yourorg/app-core';
 import { GoogleSignInButton } from '@/components/GoogleSignInButton';
 import { LinkedInSignInButton } from '@/components/LinkedInSignInButton';
+import { AuroraBackground } from '@/components/AuroraBackground';
 import { LandingDemo } from '@/components/LandingDemo';
 import { LoadingScreen } from '@/components/LoadingScreen';
 import { SetupRequired } from '@/components/SetupRequired';
+import { RecruiterIntentToggle } from '@/components/RecruiterIntentToggle';
 import { useAuth } from '@/hooks/useAuth';
+import { resolvePostAuthDestination, setRecruiterIntent, stashAuthNext } from '@/lib/recruiterIntent';
 import { getOAuthSiteUrl } from '@/lib/site';
 
+type AccountIntent = 'candidate' | 'recruiter';
+
 type Mode = 'signin' | 'signup' | 'reset';
+
+type IconName = 'mic' | 'profile' | 'preview' | 'export';
+
+function FeatureIcon({ name }: { name: IconName }) {
+  const common = {
+    width: 22,
+    height: 22,
+    viewBox: '0 0 24 24',
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeWidth: 1.5,
+    strokeLinecap: 'round' as const,
+    strokeLinejoin: 'round' as const,
+    'aria-hidden': true,
+  };
+
+  if (name === 'mic') {
+    return (
+      <svg {...common}>
+        <rect x="9" y="3" width="6" height="11" rx="3" />
+        <path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
+      </svg>
+    );
+  }
+  if (name === 'profile') {
+    return (
+      <svg {...common}>
+        <circle cx="12" cy="8" r="3.5" />
+        <path d="M5 20a7 7 0 0 1 14 0" />
+      </svg>
+    );
+  }
+  if (name === 'preview') {
+    return (
+      <svg {...common}>
+        <rect x="4" y="3" width="16" height="18" rx="2" />
+        <path d="M8 8h8M8 12h8M8 16h4" />
+      </svg>
+    );
+  }
+  return (
+    <svg {...common}>
+      <path d="M12 3v11m0 0 4-4m-4 4-4-4" />
+      <path d="M5 17v2a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-2" />
+    </svg>
+  );
+}
+
+const FEATURE_DETAILS: Array<{ icon: IconName; label: string; title: string; copy: string }> = [
+  {
+    icon: 'mic',
+    label: 'Voice interview',
+    title: 'Guided prompts, not a blank page',
+    copy: 'Ceevie asks the right follow-ups and turns spoken answers into CV-ready sections.',
+  },
+  {
+    icon: 'profile',
+    label: 'Profile memory',
+    title: 'Your basics stay ready',
+    copy: 'Save your name, headline, location, LinkedIn URL, and photo once for every future CV.',
+  },
+  {
+    icon: 'preview',
+    label: 'Live preview',
+    title: 'Watch the document take shape',
+    copy: 'Each answer updates the preview, so you can see what is missing before exporting.',
+  },
+  {
+    icon: 'export',
+    label: 'Export',
+    title: 'Polished PDF when you are done',
+    copy: 'Generate a clean, recruiter-friendly CV from the story you just captured.',
+  },
+];
+
+const WORKFLOW_STEPS = ['Connect', 'Speak', 'Review', 'Export'];
+
+const AUTH_STATS = [
+  { value: '6', label: 'guided CV sections' },
+  { value: 'Voice', label: 'first interview' },
+  { value: 'Live', label: 'preview while you speak' },
+  { value: 'PDF', label: 'export when ready' },
+];
 
 export default function LoginPage() {
   return (
@@ -24,8 +112,15 @@ export default function LoginPage() {
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { loading, configured, supabase } = useAuth({ redirectIfAuthenticated: '/' });
+  const nextPath = searchParams.get('next');
+  const recruiterFromUrl = searchParams.get('recruiter') === '1';
+  const redirectTarget = nextPath?.startsWith('/') ? nextPath : '/';
+  const { loading, configured, supabase } = useAuth({ redirectIfAuthenticated: redirectTarget });
   const siteUrl = getOAuthSiteUrl();
+
+  const [accountIntent, setAccountIntent] = useState<AccountIntent>(
+    recruiterFromUrl ? 'recruiter' : 'candidate'
+  );
 
   const [mode, setMode] = useState<Mode>('signin');
   const [email, setEmail] = useState('');
@@ -45,6 +140,23 @@ function LoginForm() {
     }
   }, [searchParams]);
 
+  useEffect(() => {
+    if (recruiterFromUrl) setAccountIntent('recruiter');
+  }, [recruiterFromUrl]);
+
+  useEffect(() => {
+    setRecruiterIntent(accountIntent === 'recruiter');
+  }, [accountIntent]);
+
+  useEffect(() => {
+    stashAuthNext(nextPath);
+  }, [nextPath]);
+
+  function persistAuthIntent() {
+    setRecruiterIntent(accountIntent === 'recruiter');
+    stashAuthNext(nextPath);
+  }
+
   if (!configured) return <SetupRequired />;
   if (loading || !supabase) {
     return <LoadingScreen message="Loading…" />;
@@ -53,7 +165,11 @@ function LoginForm() {
   const authClient = supabase;
 
   async function completeSignIn() {
-    router.replace('/');
+    const {
+      data: { session },
+    } = await authClient.auth.getSession();
+    const destination = await resolvePostAuthDestination(session?.access_token);
+    router.replace(destination);
     router.refresh();
   }
 
@@ -61,6 +177,7 @@ function LoginForm() {
     event.preventDefault();
     setError(null);
     setInfo(null);
+    persistAuthIntent();
     setSubmitting(true);
 
     try {
@@ -118,34 +235,61 @@ function LoginForm() {
 
   return (
     <div className="auth-page auth-page-breakthrough">
-      <aside className="auth-manifesto" aria-hidden="false">
-        <p className="auth-manifesto-kicker">The end of blank pages</p>
-        <h2 className="auth-manifesto-title">
-          You don&apos;t write CVs.
-          <span>You tell your story.</span>
-        </h2>
-        <ul className="auth-manifesto-points">
-          <li>Speak naturally — Ceevie asks the questions out loud</li>
-          <li>Watch your CV materialize in real time on the page</li>
-          <li>Export a polished PDF in one tap when you&apos;re done</li>
-        </ul>
+      <AuroraBackground />
 
-        <LandingDemo />
-      </aside>
+      <div className="auth-page-content">
+      <div className="auth-page-hero">
+        <aside className="auth-manifesto" aria-hidden="false">
+          <p className="auth-manifesto-kicker">The end of blank pages</p>
+          <h2 className="auth-manifesto-title">
+            You don&apos;t write CVs.
+            <span>You tell your story.</span>
+          </h2>
+          <ul className="auth-manifesto-points">
+            <li>Speak naturally — Ceevie asks the questions out loud</li>
+            <li>Watch your CV materialize in real time on the page</li>
+            <li>Export a polished PDF in one tap when you&apos;re done</li>
+          </ul>
 
-      <main className="auth-card">
+          <LandingDemo />
+        </aside>
+
+        <div className="auth-form-stage">
+          <main className="auth-card auth-card-focus">
         <p className="auth-kicker">Voice-first CV builder</p>
         <h1>Ceevie</h1>
-        <p>
-          {mode === 'signin' && 'Sign in and talk your way to a professional CV.'}
-          {mode === 'signup' && 'Create an account. Your next CV starts with your voice.'}
+        <p className="auth-card-lead">
+          {mode === 'signin' &&
+            (accountIntent === 'recruiter'
+              ? 'Sign in to create role briefs and invite candidates.'
+              : 'Sign in and talk your way to a professional CV.')}
+          {mode === 'signup' &&
+            (accountIntent === 'recruiter'
+              ? 'Create a recruiter account and send your first invite link.'
+              : 'Create an account. Your next CV starts with your voice.')}
           {mode === 'reset' && 'Enter your email for a password reset link.'}
         </p>
 
         {mode !== 'reset' && (
+          <RecruiterIntentToggle
+            value={accountIntent}
+            onChange={setAccountIntent}
+            disabled={submitting}
+          />
+        )}
+
+        {mode !== 'reset' && (
           <>
-            <GoogleSignInButton supabase={authClient} siteUrl={siteUrl} />
-            <LinkedInSignInButton supabase={authClient} siteUrl={siteUrl} />
+            <GoogleSignInButton
+              supabase={authClient}
+              siteUrl={siteUrl}
+              onBeforeSignIn={persistAuthIntent}
+            />
+            <LinkedInSignInButton
+              supabase={authClient}
+              siteUrl={siteUrl}
+              onBeforeSignIn={persistAuthIntent}
+            />
             <div className="auth-divider" aria-hidden="true">
               <span>or continue with email</span>
             </div>
@@ -247,6 +391,49 @@ function LoginForm() {
           )}
         </p>
       </main>
+        </div>
+      </div>
+
+      <section className="auth-feature-section" aria-labelledby="auth-feature-title">
+        <div className="auth-feature-header">
+          <div className="auth-feature-heading">
+            <p className="auth-feature-eyebrow">Built for job applications</p>
+            <h3 id="auth-feature-title">Everything between your experience and a finished CV.</h3>
+          </div>
+
+          <div className="auth-workflow" aria-label="Ceevie workflow">
+            {WORKFLOW_STEPS.map((step, index) => (
+              <div className="auth-workflow-step" key={step}>
+                <span>{String(index + 1).padStart(2, '0')}</span>
+                <strong>{step}</strong>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="auth-feature-grid">
+          {FEATURE_DETAILS.map((feature) => (
+            <article className="auth-feature-card" key={feature.label}>
+              <span className="auth-feature-card-icon">
+                <FeatureIcon name={feature.icon} />
+              </span>
+              <p>{feature.label}</p>
+              <h4>{feature.title}</h4>
+              <span className="auth-feature-card-copy">{feature.copy}</span>
+            </article>
+          ))}
+        </div>
+
+        <dl className="auth-feature-stats">
+          {AUTH_STATS.map((stat) => (
+            <div className="auth-feature-stat" key={stat.label}>
+              <dt>{stat.label}</dt>
+              <dd>{stat.value}</dd>
+            </div>
+          ))}
+        </dl>
+      </section>
+      </div>
     </div>
   );
 }

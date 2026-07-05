@@ -1,7 +1,12 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { EMPTY_USER_PROFILE, normalizeUserProfile, type UserProfile } from '@/lib/userProfile';
+import {
+  EMPTY_USER_PROFILE,
+  normalizeUserProfile,
+  sanitizeProfileForSetup,
+  type UserProfile,
+} from '@/lib/userProfile';
 
 export type ProfileSaveStatus = 'idle' | 'saving' | 'saved' | 'error';
 
@@ -22,7 +27,7 @@ export function useUserProfile(accessToken: string | undefined) {
     const data = await response.json();
     if (!data.profile) return null;
 
-    const profile = normalizeUserProfile(data.profile as UserProfile);
+    const profile = sanitizeProfileForSetup(normalizeUserProfile(data.profile as UserProfile));
     setProfile(profile);
     setLoaded(true);
     return profile;

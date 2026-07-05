@@ -20,6 +20,8 @@ import {
 import { LinkedInImportCard, shouldShowLinkedInImportCard } from '@/components/LinkedInImportCard';
 import { ProfileSetupCard } from '@/components/ProfileSetupCard';
 import type { SaveStatus } from '@/hooks/useCvDraft';
+import { RoleBriefBanner } from '@/components/RoleBriefBanner';
+import type { PublicRoleBrief } from '@/lib/roleBrief';
 import { profileSetupComplete, type UserProfile } from '@/lib/userProfile';
 
 const ONBOARDING_KEY = 'ceevie-onboarding-dismissed';
@@ -54,6 +56,7 @@ type ExperienceChatProps = {
   profileLoaded?: boolean;
   profileSaving?: boolean;
   linkedInImportFresh?: boolean;
+  roleBrief?: PublicRoleBrief | null;
 };
 
 export function ExperienceChat({
@@ -84,6 +87,7 @@ export function ExperienceChat({
   profileLoaded = true,
   profileSaving = false,
   linkedInImportFresh = false,
+  roleBrief,
 }: ExperienceChatProps) {
   const [input, setInput] = useState('');
   const [showTyping, setShowTyping] = useState(false);
@@ -345,11 +349,11 @@ export function ExperienceChat({
   const progressPercent = Math.min((filledSections / REQUIRED_SECTIONS) * 100, 100);
   const micLabel =
     voice.state === 'starting'
-      ? 'Starting mic…'
+      ? 'Starting…'
       : voice.state === 'recording'
         ? 'Tap to finish'
         : voice.state === 'listening'
-          ? "Tap when you're done"
+          ? 'Tap when done'
           : voice.transcribing
             ? 'Processing…'
             : 'Tap to speak';
@@ -375,6 +379,8 @@ export function ExperienceChat({
           </div>
         </div>
       </div>
+
+      {roleBrief ? <RoleBriefBanner brief={roleBrief} /> : null}
 
       {showProfileSetup && profile && onSaveProfileSetup ? (
         <ProfileSetupCard
