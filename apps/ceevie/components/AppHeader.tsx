@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import type { UsageInfo } from '@/hooks/useUsage';
+import type { PreviewLayout } from '@/hooks/usePreviewLayout';
 import { useStudioPreferences } from '@/hooks/useStudioPreferences';
 import { StudioControls } from '@/components/StudioControls';
 import { useCeevieVoice } from '@/hooks/useCeevieVoice';
@@ -22,6 +23,13 @@ type AppHeaderProps = {
   totalSections?: number;
   finished?: boolean;
   showRecruiterLink?: boolean;
+  previewLayout?: PreviewLayout;
+  onPreviewLayoutChange?: (layout: PreviewLayout) => void;
+  onOpenCompanies?: () => void;
+  onOpenTools?: () => void;
+  onChangeProject?: () => void;
+  showCompanies?: boolean;
+  onResetOnboarding?: () => void;
 };
 
 export function AppHeader({
@@ -39,6 +47,13 @@ export function AppHeader({
   totalSections = 6,
   finished = false,
   showRecruiterLink = false,
+  previewLayout = 'docked',
+  onPreviewLayoutChange,
+  onOpenCompanies,
+  onOpenTools,
+  onChangeProject,
+  showCompanies = false,
+  onResetOnboarding,
 }: AppHeaderProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const { prefs, toggleCeevieVoice, toggleCaptureSound } = useStudioPreferences();
@@ -72,6 +87,7 @@ export function AppHeader({
 
         {totalSections > 0 && (
           <div className="app-header-progress" aria-label={progressLabel}>
+            <span className="app-header-progress-label">{progressLabel}</span>
             <div className="app-header-progress-track">
               <div className="app-header-progress-fill" style={{ width: `${progressPercent}%` }} />
             </div>
@@ -79,6 +95,79 @@ export function AppHeader({
         )}
 
         <div className="app-header-toolbar">
+          {(showCompanies || onPreviewLayoutChange) && (
+            <div className="app-header-studio-actions" aria-label="Studio controls">
+              {showCompanies && onOpenCompanies ? (
+                <button type="button" className="app-header-studio-btn" onClick={onOpenCompanies}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path
+                      d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-6h6v6"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                  Companies
+                </button>
+              ) : null}
+              {onPreviewLayoutChange && previewLayout === 'collapsed' ? (
+                <button
+                  type="button"
+                  className="app-header-studio-btn app-header-studio-btn-accent"
+                  onClick={() => onPreviewLayoutChange('docked')}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path
+                      d="M14 3h7v7M10 14L21 3M5 12v7h7"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                  Show CV
+                </button>
+              ) : null}
+              {onPreviewLayoutChange && previewLayout === 'docked' ? (
+                <>
+                  <button
+                    type="button"
+                    className="app-header-studio-btn"
+                    onClick={() => onPreviewLayoutChange('fullscreen')}
+                  >
+                    Full screen
+                  </button>
+                  <button
+                    type="button"
+                    className="app-header-studio-btn"
+                    onClick={() => onPreviewLayoutChange('collapsed')}
+                  >
+                    Hide CV
+                  </button>
+                </>
+              ) : null}
+              {onPreviewLayoutChange && previewLayout === 'fullscreen' ? (
+                <>
+                  <button
+                    type="button"
+                    className="app-header-studio-btn"
+                    onClick={() => onPreviewLayoutChange('docked')}
+                  >
+                    Exit full screen
+                  </button>
+                  <button
+                    type="button"
+                    className="app-header-studio-btn"
+                    onClick={() => onPreviewLayoutChange('collapsed')}
+                  >
+                    Hide CV
+                  </button>
+                </>
+              ) : null}
+            </div>
+          )}
+
           <StudioControls
             ceevieVoice={prefs.ceevieVoice}
             captureSound={prefs.captureSound}
@@ -153,6 +242,55 @@ export function AppHeader({
                   Voice setup
                 </button>
               )}
+              {onResetOnboarding && (
+                <button
+                  type="button"
+                  className="app-nav-sheet-link"
+                  onClick={() => {
+                    closeMenu();
+                    onResetOnboarding();
+                  }}
+                >
+                  Reset onboarding
+                  <span className="app-nav-sheet-link-note">Dev</span>
+                </button>
+              )}
+              {showCompanies && onOpenCompanies ? (
+                <button
+                  type="button"
+                  className="app-nav-sheet-link"
+                  onClick={() => {
+                    closeMenu();
+                    onOpenCompanies();
+                  }}
+                >
+                  Companies
+                </button>
+              ) : null}
+              {onOpenTools ? (
+                <button
+                  type="button"
+                  className="app-nav-sheet-link"
+                  onClick={() => {
+                    closeMenu();
+                    onOpenTools();
+                  }}
+                >
+                  Studio tools
+                </button>
+              ) : null}
+              {onChangeProject ? (
+                <button
+                  type="button"
+                  className="app-nav-sheet-link"
+                  onClick={() => {
+                    closeMenu();
+                    onChangeProject();
+                  }}
+                >
+                  New or upload CV
+                </button>
+              ) : null}
               <a className="app-nav-sheet-link" href="/mobile" onClick={closeMenu}>
                 Phone as mic
               </a>

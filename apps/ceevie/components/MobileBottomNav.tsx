@@ -1,14 +1,22 @@
+'use client';
+
 type MobileBottomNavProps = {
   active: 'chat' | 'preview';
   previewLabel: string;
   showPreviewBadge: boolean;
   onChat: () => void;
   onPreview: () => void;
+  onDownloadCv?: () => void;
+  onCopyCv?: () => void;
+  copyLabel?: string;
+  downloadDisabled?: boolean;
+  downloading?: boolean;
+  mode?: 'preview' | 'result';
 };
 
 function ChatIcon() {
   return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <path
         d="M7 8h10M7 12h6m-10 8 2.5-2.5H18a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v11.5Z"
         stroke="currentColor"
@@ -22,7 +30,7 @@ function ChatIcon() {
 
 function DocIcon() {
   return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <path
         d="M8 4h7l3 3v13H8a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"
         stroke="currentColor"
@@ -34,35 +42,67 @@ function DocIcon() {
   );
 }
 
+function DownloadIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M12 4v10m0 0 3.5-3.5M12 14l-3.5-3.5M5 18h14"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 export function MobileBottomNav({
   active,
   previewLabel,
   showPreviewBadge,
   onChat,
   onPreview,
+  onDownloadCv,
+  onCopyCv,
+  copyLabel = 'Copy',
+  downloadDisabled = false,
+  downloading = false,
+  mode = 'preview',
 }: MobileBottomNavProps) {
+  if (active === 'chat') {
+    return (
+      <nav className="mobile-bottom-nav mobile-bottom-nav-unified" aria-label="Main navigation">
+        <button type="button" className="mobile-bottom-nav-switch" onClick={onPreview}>
+          <span className="mobile-bottom-nav-icon-wrap">
+            <DocIcon />
+            {showPreviewBadge && <span className="mobile-bottom-nav-badge" aria-hidden="true" />}
+          </span>
+          <span>{previewLabel}</span>
+        </button>
+      </nav>
+    );
+  }
+
   return (
-    <nav className="mobile-bottom-nav" aria-label="Main navigation">
-      <button
-        type="button"
-        className={`mobile-bottom-nav-item ${active === 'chat' ? 'mobile-bottom-nav-item-active' : ''}`}
-        onClick={onChat}
-        aria-current={active === 'chat' ? 'page' : undefined}
-      >
+    <nav className={`mobile-bottom-nav mobile-bottom-nav-preview${mode === 'result' ? ' mobile-bottom-nav-result' : ''}`} aria-label="Preview actions">
+      <button type="button" className="mobile-bottom-nav-action" onClick={onChat}>
         <ChatIcon />
-        <span>Speak</span>
+        <span>Interview</span>
       </button>
+      {onCopyCv ? (
+        <button type="button" className="mobile-bottom-nav-action" onClick={onCopyCv}>
+          <DocIcon />
+          <span>{copyLabel}</span>
+        </button>
+      ) : null}
       <button
         type="button"
-        className={`mobile-bottom-nav-item ${active === 'preview' ? 'mobile-bottom-nav-item-active' : ''}`}
-        onClick={onPreview}
-        aria-current={active === 'preview' ? 'page' : undefined}
+        className="mobile-bottom-nav-action mobile-bottom-nav-action-accent"
+        onClick={onDownloadCv}
+        disabled={downloadDisabled || downloading}
       >
-        <span className="mobile-bottom-nav-icon-wrap">
-          <DocIcon />
-          {showPreviewBadge && <span className="mobile-bottom-nav-badge" aria-hidden="true" />}
-        </span>
-        <span>{previewLabel}</span>
+        <DownloadIcon />
+        <span>{downloading ? 'Exporting…' : mode === 'result' ? 'PDF' : 'Download'}</span>
       </button>
     </nav>
   );

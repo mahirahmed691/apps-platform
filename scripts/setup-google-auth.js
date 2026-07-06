@@ -70,9 +70,11 @@ function buildRedirectUrls(siteUrl) {
   const local = 'http://localhost:3000';
   const urls = new Set([
     `${siteUrl}/auth/callback`,
+    `${siteUrl}/auth/update-password`,
     `${siteUrl}/login`,
     `${siteUrl}/`,
     `${local}/auth/callback`,
+    `${local}/auth/update-password`,
     `${local}/login`,
   ]);
   return [...urls];

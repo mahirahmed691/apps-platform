@@ -1,5 +1,14 @@
 import { formatProfileContactBlock, getProfileFirstName, hasLinkedInImport, normalizeUserProfile, type UserProfile } from '@/lib/userProfile';
 import { orderSectionsForRole } from '@/lib/studioFeatures';
+import type { PreviewSectionKey } from '@/lib/cvPreviewDocument';
+
+export type CompanyTailorContext = {
+  name: string;
+  tooling: string[];
+  domains: string[];
+  methodologies: string[];
+  hiringSignals: string;
+};
 
 export type CvAnswers = {
   fullName: string;
@@ -177,6 +186,18 @@ export function getPrefilledAnswersFromProfile(profile?: Partial<UserProfile> | 
   return prefill;
 }
 
+export function mergePrefillFromProfile(current: CvAnswers, profile?: Partial<UserProfile> | null): CvAnswers {
+  const prefill = getPrefilledAnswersFromProfile(profile);
+  const next = { ...current };
+  for (const key of Object.keys(prefill) as (keyof CvAnswers)[]) {
+    const value = prefill[key];
+    if (value?.trim() && !next[key].trim()) {
+      next[key] = value.trim();
+    }
+  }
+  return next;
+}
+
 export function buildWelcomeMessage(profile?: UserProfile | null): string {
   if (!profile) return WELCOME_MESSAGE;
 
@@ -221,12 +242,31 @@ export function nextMessageId(): string {
   return `msg-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
-export function buildCvPrompt(answers: CvAnswers, profile?: UserProfile | null, language = 'en'): string {
+export function buildCvPrompt(
+  answers: CvAnswers,
+  profile?: UserProfile | null,
+  language = 'en',
+  followedCompanies?: CompanyTailorContext[],
+  previewEdits: Partial<Record<PreviewSectionKey, string>> = {}
+): string {
   const orderedKeys = orderSectionsForRole(answers.targetRole).filter(
     (key) => key !== 'jobDescription' && answers[key].trim()
   );
   const sections = orderedKeys
     .map((key) => `### ${ANSWER_LABELS[key]}\n${answers[key].trim()}`)
+    .join('\n\n');
+
+  const previewBlocks = (Object.keys(previewEdits) as PreviewSectionKey[])
+    .filter((key) => previewEdits[key]?.trim())
+    .map((key) => {
+      const label =
+        key === 'summary'
+          ? 'Professional summary (edited in preview)'
+          : key === 'achievements'
+            ? 'Key achievements (edited in preview)'
+            : `${ANSWER_LABELS[key as keyof CvAnswers] ?? key} (edited in preview)`;
+      return `### ${label}\n${previewEdits[key]!.trim()}`;
+    })
     .join('\n\n');
 
   const contactProfile = profile
@@ -247,7 +287,25 @@ export function buildCvPrompt(answers: CvAnswers, profile?: UserProfile | null, 
         '',
         'Emphasise experience and skills that match this posting. Mirror relevant keywords naturally.',
       ].join('\n')
-    : '';
+    : followedCompanies?.length
+      ? [
+          '',
+          '---',
+          '',
+          '### Target employers to tailor for',
+          ...followedCompanies.map((company) =>
+            [
+              `Company: ${company.name}`,
+              `Priority tooling: ${company.tooling.slice(0, 8).join(', ')}`,
+              `Priority domains: ${company.domains.join(', ')}`,
+              `Ways of working: ${company.methodologies.join(', ')}`,
+              `Hiring signals: ${company.hiringSignals}`,
+            ].join('\n')
+          ),
+          '',
+          'Emphasise overlapping skills and evidence that fit these employers across role families.',
+        ].join('\n\n')
+      : '';
 
   return [
     'You are an expert CV writer for UK job seekers.',
@@ -266,6 +324,7 @@ export function buildCvPrompt(answers: CvAnswers, profile?: UserProfile | null, 
     '--- Conversation notes ---',
     '',
     sections,
+    previewBlocks ? `\n\n${previewBlocks}` : '',
     tailorBlock,
   ].join('\n');
 }
@@ -275,7 +334,8 @@ export function buildChatPrompt(
   answers: CvAnswers,
   latestUserMessage?: string,
   profile?: UserProfile | null,
-  roleBrief?: { title: string; company: string; description: string; requirements: string } | null
+  roleBrief?: { title: string; company: string; description: string; requirements: string } | null,
+  followedCompanies?: CompanyTailorContext[]
 ): string {
   const transcript = messages
     .map((m) => `${m.role === 'assistant' ? 'Interviewer' : 'Candidate'}: ${m.content}`)
@@ -286,20 +346,22 @@ export function buildChatPrompt(
     .map((key) => `- ${ANSWER_LABELS[key]}: ${answers[key].trim()}`)
     .join('\n');
 
-  const profileBlock =
-    profile && hasLinkedInImport(profile)
-      ? [
-          '',
-          '--- LinkedIn profile context (already imported — do not re-ask unless missing) ---',
-          profile.fullName.trim() ? `Name: ${profile.fullName.trim()}` : '',
-          profile.headline.trim() ? `Headline: ${profile.headline.trim()}` : '',
-          profile.linkedinUrl.trim() ? `LinkedIn: ${profile.linkedinUrl.trim()}` : '',
-          profile.email.trim() ? `Email: ${profile.email.trim()}` : '',
-          'Focus follow-up questions on experience, achievements, skills, and education.',
-        ]
-          .filter(Boolean)
-          .join('\n')
-      : '';
+  const profileBlock = profile
+    ? [
+        '',
+        '--- Profile already on file (do not re-ask for fields already captured below) ---',
+        profile.fullName.trim() ? `Name: ${profile.fullName.trim()}` : '',
+        profile.headline.trim() ? `Target role / headline: ${profile.headline.trim()}` : '',
+        profile.location.trim() ? `Location: ${profile.location.trim()}` : '',
+        profile.email.trim() ? `Email: ${profile.email.trim()}` : '',
+        profile.linkedinUrl.trim() ? `LinkedIn: ${profile.linkedinUrl.trim()}` : '',
+        hasLinkedInImport(profile)
+          ? 'LinkedIn is connected — focus follow-ups on experience, achievements, skills, and education.'
+          : 'If name or target role are listed above, skip those topics unless missing from Captured.',
+      ]
+        .filter(Boolean)
+        .join('\n')
+    : '';
 
   const roleBriefBlock = roleBrief
     ? [
@@ -313,6 +375,23 @@ export function buildChatPrompt(
       ]
         .filter(Boolean)
         .join('\n')
+    : '';
+
+  const followedCompaniesBlock = followedCompanies?.length
+    ? [
+        '',
+        '--- Followed target companies (tailor interview notes and follow-ups to these employers) ---',
+        ...followedCompanies.map((company) =>
+          [
+            `Company: ${company.name}`,
+            `Priority tooling: ${company.tooling.slice(0, 8).join(', ')}`,
+            `Priority domains: ${company.domains.join(', ')}`,
+            `Ways of working: ${company.methodologies.join(', ')}`,
+            `Hiring signals: ${company.hiringSignals}`,
+          ].join('\n')
+        ),
+        'Ask follow-ups that surface evidence matching these stacks and domains. Query tooling, delivery methods, and domain experience when gaps remain.',
+      ].join('\n\n')
     : '';
 
   return [
@@ -346,6 +425,7 @@ export function buildChatPrompt(
     '{"ready":boolean,"nextQuestion":string|null,"hint":string,"placeholder":string,"acknowledgment":string,"suggestions":["…"],"fieldUpdates":{"fullName":"","targetRole":"","recentRole":"","achievements":"","experience":"","skills":"","education":"","extras":"","jobDescription":""}}',
     profileBlock,
     roleBriefBlock,
+    followedCompaniesBlock,
     '',
     '--- Captured so far ---',
     captured || '(nothing yet)',
@@ -402,8 +482,19 @@ export function countFilledSections(answers: CvAnswers): number {
   return REQUIRED_CV_SECTIONS.filter((k) => answers[k].trim()).length;
 }
 
+export function buildAnswersDraftText(answers: CvAnswers): string {
+  return REQUIRED_CV_SECTIONS.filter((key) => answers[key].trim())
+    .map((key) => `${ANSWER_LABELS[key]}\n${answers[key].trim()}`)
+    .join('\n\n');
+}
+
 export function getActiveConversationStep(answers: CvAnswers): ConversationStep {
+  const prefilled = new Set<keyof CvAnswers>();
+  if (answers.fullName.trim()) prefilled.add('fullName');
+  if (answers.targetRole.trim()) prefilled.add('targetRole');
+
   for (const step of CONVERSATION_STEPS) {
+    if (prefilled.has(step.id)) continue;
     if (!answers[step.id].trim()) return step;
   }
   return CONVERSATION_STEPS[CONVERSATION_STEPS.length - 1];

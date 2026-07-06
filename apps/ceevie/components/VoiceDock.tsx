@@ -123,7 +123,7 @@ export function VoiceDock({
             )}
           </div>
 
-          {!voiceBusy && voice.configLoaded && !voice.whisperAvailable && (
+          {!voiceBusy && voice.configLoaded && !voice.whisperAvailable && process.env.NODE_ENV === 'development' && (
             <p className="voice-setup-hint">
               Voice requires <code>OPENAI_API_KEY</code>. Add it to your root <code>.env</code>, run{' '}
               <code>npm run fill-env -- ceevie</code>, restart the dev server, then tap the mic.

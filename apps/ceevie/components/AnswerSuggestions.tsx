@@ -5,6 +5,7 @@ type AnswerSuggestionsProps = {
   mode: 'clarity' | 'examples' | 'enhance';
   unclearTranscript?: string;
   disabled?: boolean;
+  compact?: boolean;
   onSelect: (text: string) => void;
   onSendAnyway?: () => void;
   onDismiss?: () => void;
@@ -30,6 +31,7 @@ export function AnswerSuggestions({
   mode,
   unclearTranscript,
   disabled,
+  compact = false,
   onSelect,
   onSendAnyway,
   onDismiss,
@@ -37,6 +39,27 @@ export function AnswerSuggestions({
   if (suggestions.length === 0) return null;
 
   const copy = MODE_COPY[mode];
+  const visible = compact ? suggestions.slice(0, 3) : suggestions;
+
+  if (compact && mode !== 'clarity') {
+    return (
+      <div className="answer-suggestions answer-suggestions-compact" role="group" aria-label={copy.title}>
+        <div className="answer-suggestions-chips">
+          {visible.map((suggestion) => (
+            <button
+              key={suggestion}
+              type="button"
+              className="answer-suggestion-chip"
+              disabled={disabled}
+              onClick={() => onSelect(suggestion)}
+            >
+              {suggestion}
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={`answer-suggestions answer-suggestions-${mode}`} role="group" aria-label={copy.title}>
@@ -59,7 +82,7 @@ export function AnswerSuggestions({
       )}
 
       <div className="answer-suggestions-grid">
-        {suggestions.map((suggestion, index) => (
+        {visible.map((suggestion, index) => (
           <button
             key={suggestion}
             type="button"

@@ -6,12 +6,15 @@ import {
   EMPTY_ANSWERS,
   buildInitialMessages,
   getPrefilledAnswersFromProfile,
+  mergePrefillFromProfile,
   nextMessageId,
   type ChatMessage,
   type CvAnswers,
 } from '@/lib/cvBuilder';
 import { normalizeUserProfile, type UserProfile } from '@/lib/userProfile';
 import type { DraftState } from '@/hooks/useCvDraft';
+import type { PreviewSectionKey } from '@/lib/cvPreviewDocument';
+import type { ImportUploadResult } from '@/lib/importUploadedCv';
 
 function mergeAnswers(current: CvAnswers, updates?: Partial<CvAnswers>): CvAnswers {
   if (!updates) return current;
@@ -48,18 +51,24 @@ export function useCvConversation(accessToken: string | undefined) {
   const [composerPlaceholder, setComposerPlaceholder] = useState(boot.composerPlaceholder);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [initialized, setInitialized] = useState(false);
+  const [previewEdits, setPreviewEdits] = useState<Partial<Record<PreviewSectionKey, string>>>({});
 
   const restoreDraft = useCallback((draft: DraftState) => {
     setMessages(draft.messages.length > 0 ? draft.messages : createInitialState().messages);
     setAnswers({ ...EMPTY_ANSWERS, ...draft.answers });
     setFinished(draft.finished);
     setTurnCount(draft.turnCount);
+    setPreviewEdits(draft.previewEdits ?? {});
     setInitialized(true);
     return draft.generatedCv ?? null;
   }, []);
 
   const updateAnswer = useCallback((key: keyof CvAnswers, value: string) => {
     setAnswers((prev) => ({ ...prev, [key]: value }));
+  }, []);
+
+  const updatePreviewEdit = useCallback((key: PreviewSectionKey, value: string) => {
+    setPreviewEdits((prev) => ({ ...prev, [key]: value }));
   }, []);
 
   const markInitialized = useCallback(() => {
@@ -153,7 +162,8 @@ export function useCvConversation(accessToken: string | undefined) {
 
   const applyProfileContext = useCallback((profile: UserProfile) => {
     const safe = normalizeUserProfile(profile);
-    setAnswers((prev) => ({ ...prev, ...getPrefilledAnswersFromProfile(safe) }));
+
+    setAnswers((prev) => mergePrefillFromProfile(prev, safe));
 
     setMessages((current) => {
       if (current.some((message) => message.role === 'user')) return current;
@@ -173,7 +183,30 @@ export function useCvConversation(accessToken: string | undefined) {
     setComposerHint(initial.composerHint);
     setComposerPlaceholder(initial.composerPlaceholder);
     setSuggestions([]);
+    setPreviewEdits({});
     setInitialized(true);
+  }, []);
+
+  const applyImport = useCallback((imported: ImportUploadResult, profile?: UserProfile | null) => {
+    const safe = normalizeUserProfile(profile);
+    const initial = buildInitialMessages(safe);
+    const welcome: ChatMessage = {
+      id: nextMessageId(),
+      role: 'assistant',
+      content:
+        "I've imported your CV onto the page. Review and edit anything directly — or keep going here to fill gaps and tailor it.",
+    };
+
+    setAnswers({ ...EMPTY_ANSWERS, ...getPrefilledAnswersFromProfile(safe), ...imported.answers });
+    setPreviewEdits(imported.previewEdits);
+    setFinished(imported.finished);
+    setTurnCount(0);
+    setMessages([...initial.messages, welcome]);
+    setComposerHint(imported.finished ? undefined : initial.hint);
+    setComposerPlaceholder(imported.finished ? 'Ask to refine a section…' : initial.placeholder);
+    setSuggestions([]);
+    setInitialized(true);
+    return imported.generatedCv;
   }, []);
 
   const reopenSection = useCallback((sectionId: keyof CvAnswers) => {
@@ -191,12 +224,15 @@ export function useCvConversation(accessToken: string | undefined) {
     composerPlaceholder,
     suggestions,
     initialized,
+    previewEdits,
     restoreDraft,
     markInitialized,
     sendMessage,
     updateAnswer,
+    updatePreviewEdit,
     reset,
     reopenSection,
     applyProfileContext,
+    applyImport,
   };
 }

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ChatMessage, CvAnswers } from '@/lib/cvBuilder';
+import type { PreviewSectionKey } from '@/lib/cvPreviewDocument';
 
 export type DraftState = {
   answers: CvAnswers;
@@ -9,6 +10,7 @@ export type DraftState = {
   finished: boolean;
   turnCount: number;
   generatedCv?: string | null;
+  previewEdits?: Partial<Record<PreviewSectionKey, string>>;
 };
 
 export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
@@ -35,6 +37,7 @@ export function useCvDraft(accessToken: string | undefined, state: DraftState | 
       finished: data.draft.finished,
       turnCount: data.draft.turnCount ?? 0,
       generatedCv: data.draft.generatedCv ?? null,
+      previewEdits: data.draft.previewEdits ?? {},
     };
   }, [accessToken]);
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthUser } from '@/lib/apiAuth';
 
+/** Clears saved CV data and profile fields without removing the sign-in account. */
 export async function DELETE(req: NextRequest) {
   const auth = await requireAuthUser(req);
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

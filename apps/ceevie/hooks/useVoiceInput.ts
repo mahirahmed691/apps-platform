@@ -1,6 +1,14 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  acquireMicStream,
+  isLiveAudioStream,
+  queryMicPermission,
+  releaseMicStream,
+  writeMicGrantedLocally,
+  type MicPermissionState,
+} from '@/lib/micAccess';
 
 export type VoiceMode = 'whisper' | 'browser';
 export type VoiceState = 'idle' | 'starting' | 'listening' | 'recording' | 'transcribing';
@@ -25,6 +33,9 @@ const IGNORED_WHILE_STOPPING = new Set(['aborted', 'no-speech', 'network']);
 
 const MAX_RECORD_MS = 120_000;
 const MIN_RECORD_MS = 1200;
+const SILENCE_STOP_MS = 1800;
+const SILENCE_RMS_THRESHOLD = 0.018;
+const SILENCE_POLL_MS = 150;
 
 function getSpeechRecognition(): SpeechRecognitionCtor | null {
   if (typeof window === 'undefined') return null;
@@ -72,6 +83,8 @@ export function useVoiceInput({ accessToken, onTranscript, onError }: UseVoiceIn
   const [configLoaded, setConfigLoaded] = useState(false);
   const [state, setState] = useState<VoiceState>('idle');
   const [interimText, setInterimText] = useState('');
+  const [micPermission, setMicPermission] = useState<MicPermissionState>('prompt');
+  const [micReady, setMicReady] = useState(false);
 
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
@@ -84,6 +97,12 @@ export function useVoiceInput({ accessToken, onTranscript, onError }: UseVoiceIn
   const networkRetriedRef = useRef(false);
   const whisperAvailableRef = useRef(false);
   const startWhisperRef = useRef<() => void>(() => {});
+  const silenceTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const lastSpeechActivityRef = useRef(0);
+  const hadSpeechRef = useRef(false);
+  const vadIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const stopRef = useRef<() => void>(() => {});
 
   const onTranscriptRef = useRef(onTranscript);
   const onErrorRef = useRef(onError);
@@ -100,7 +119,35 @@ export function useVoiceInput({ accessToken, onTranscript, onError }: UseVoiceIn
     const hasMic = typeof navigator !== 'undefined' && Boolean(navigator.mediaDevices?.getUserMedia);
     const hasBrowserStt = Boolean(getSpeechRecognition());
     setSupported(hasMic || hasBrowserStt);
+    if (!hasMic) return;
+
+    void queryMicPermission().then((permission) => {
+      setMicPermission(permission);
+      if (permission === 'granted') setMicReady(true);
+    });
   }, []);
+
+  const ensureMicStream = useCallback(async (): Promise<MediaStream | null> => {
+    const stream = await acquireMicStream(streamRef.current);
+    if (stream) {
+      streamRef.current = stream;
+      setMicPermission('granted');
+      setMicReady(true);
+      writeMicGrantedLocally(true);
+      return stream;
+    }
+
+    setMicPermission('denied');
+    setMicReady(false);
+    writeMicGrantedLocally(false);
+    return null;
+  }, []);
+
+  const warmMic = useCallback(async (): Promise<boolean> => {
+    if (!canUseWhisper(true) && !getSpeechRecognition()) return false;
+    const stream = await ensureMicStream();
+    return Boolean(stream);
+  }, [ensureMicStream]);
 
   useEffect(() => {
     if (!accessToken) {
@@ -133,11 +180,25 @@ export function useVoiceInput({ accessToken, onTranscript, onError }: UseVoiceIn
   }, [accessToken]);
 
   const resetIdle = useCallback(() => {
+    if (silenceTimerRef.current) {
+      clearInterval(silenceTimerRef.current);
+      silenceTimerRef.current = null;
+    }
+    if (vadIntervalRef.current) {
+      clearInterval(vadIntervalRef.current);
+      vadIntervalRef.current = null;
+    }
+    if (audioContextRef.current) {
+      void audioContextRef.current.close().catch(() => undefined);
+      audioContextRef.current = null;
+    }
     setState('idle');
     setInterimText('');
     browserTranscriptRef.current = '';
     stoppingBrowserRef.current = false;
     networkRetriedRef.current = false;
+    hadSpeechRef.current = false;
+    lastSpeechActivityRef.current = 0;
   }, []);
 
   const deliverBrowserTranscript = useCallback(() => {
@@ -150,10 +211,75 @@ export function useVoiceInput({ accessToken, onTranscript, onError }: UseVoiceIn
     }
   }, [resetIdle]);
 
-  const cleanupStream = useCallback(() => {
-    streamRef.current?.getTracks().forEach((track) => track.stop());
+  const cleanupStream = useCallback((release = false) => {
+    if (!release && isLiveAudioStream(streamRef.current)) return;
+    releaseMicStream(streamRef.current);
     streamRef.current = null;
+    if (release) {
+      setMicReady(false);
+    }
   }, []);
+
+  const clearSilenceMonitor = useCallback(() => {
+    if (silenceTimerRef.current) {
+      clearInterval(silenceTimerRef.current);
+      silenceTimerRef.current = null;
+    }
+  }, []);
+
+  const startSilenceMonitor = useCallback(() => {
+    clearSilenceMonitor();
+    silenceTimerRef.current = setInterval(() => {
+      if (!hadSpeechRef.current) return;
+      if (Date.now() - lastSpeechActivityRef.current < SILENCE_STOP_MS) return;
+      stopRef.current();
+    }, SILENCE_POLL_MS);
+  }, [clearSilenceMonitor]);
+
+  const markSpeechActivity = useCallback(() => {
+    hadSpeechRef.current = true;
+    lastSpeechActivityRef.current = Date.now();
+  }, []);
+
+  const startWhisperVad = useCallback((stream: MediaStream) => {
+    if (typeof window === 'undefined') return;
+
+    try {
+      const audioContext = new AudioContext();
+      audioContextRef.current = audioContext;
+      const source = audioContext.createMediaStreamSource(stream);
+      const analyser = audioContext.createAnalyser();
+      analyser.fftSize = 2048;
+      source.connect(analyser);
+      const samples = new Uint8Array(analyser.fftSize);
+
+      vadIntervalRef.current = setInterval(() => {
+        analyser.getByteTimeDomainData(samples);
+        let sum = 0;
+        for (let i = 0; i < samples.length; i += 1) {
+          const sample = (samples[i] - 128) / 128;
+          sum += sample * sample;
+        }
+        const rms = Math.sqrt(sum / samples.length);
+        const elapsed = Date.now() - recordStartedAtRef.current;
+
+        if (rms > SILENCE_RMS_THRESHOLD) {
+          markSpeechActivity();
+          return;
+        }
+
+        if (
+          hadSpeechRef.current &&
+          elapsed >= MIN_RECORD_MS &&
+          Date.now() - lastSpeechActivityRef.current >= SILENCE_STOP_MS
+        ) {
+          stopRef.current();
+        }
+      }, SILENCE_POLL_MS);
+    } catch {
+      /* VAD optional — manual stop still works */
+    }
+  }, [markSpeechActivity]);
 
   const stopBrowserEngine = useCallback(() => {
     const recognition = recognitionRef.current;
@@ -198,14 +324,18 @@ export function useVoiceInput({ accessToken, onTranscript, onError }: UseVoiceIn
 
     if (recorderRef.current && recorderRef.current.state !== 'inactive') {
       const elapsed = Date.now() - recordStartedAtRef.current;
-      if (elapsed < MIN_RECORD_MS) {
-        onErrorRef.current?.('Speak for at least a second, then tap Stop.');
+      if (elapsed < MIN_RECORD_MS && !hadSpeechRef.current) {
+        onErrorRef.current?.('Speak for at least a second.');
         return;
       }
       setInterimText('Transcribing…');
       stopWhisper();
     }
   }, [state, requestStopBrowser, stopWhisper]);
+
+  useEffect(() => {
+    stopRef.current = stop;
+  }, [stop]);
 
   const uploadRecording = useCallback(
     async (blob: Blob) => {
@@ -277,6 +407,7 @@ export function useVoiceInput({ accessToken, onTranscript, onError }: UseVoiceIn
       if (combined) {
         browserTranscriptRef.current = combined;
         setInterimText(combined);
+        markSpeechActivity();
       }
     };
 
@@ -330,12 +461,13 @@ export function useVoiceInput({ accessToken, onTranscript, onError }: UseVoiceIn
 
     try {
       recognition.start();
+      startSilenceMonitor();
     } catch {
       recognitionRef.current = null;
       resetIdle();
       onErrorRef.current?.('Could not start voice input. Tap the mic again.');
     }
-  }, [deliverBrowserTranscript, resetIdle]);
+  }, [deliverBrowserTranscript, resetIdle, markSpeechActivity, startSilenceMonitor]);
 
   const startWhisper = useCallback(async () => {
     if (!accessToken) {
@@ -349,11 +481,16 @@ export function useVoiceInput({ accessToken, onTranscript, onError }: UseVoiceIn
     }
 
     setState('starting');
-    setInterimText('Allow microphone access…');
+    setInterimText(micReady ? 'Listening…' : 'Allow microphone access…');
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      streamRef.current = stream;
+      const stream = await ensureMicStream();
+      if (!stream) {
+        resetIdle();
+        onErrorRef.current?.('Microphone access denied. Allow mic permission in your browser settings.');
+        return;
+      }
+
       chunksRef.current = [];
 
       const mimeType = pickMimeType();
@@ -365,7 +502,6 @@ export function useVoiceInput({ accessToken, onTranscript, onError }: UseVoiceIn
       };
 
       recorder.onstop = () => {
-        cleanupStream();
         recorderRef.current = null;
         const blob = new Blob(chunksRef.current, { type: recorder.mimeType || mimeType || 'audio/webm' });
         chunksRef.current = [];
@@ -377,25 +513,28 @@ export function useVoiceInput({ accessToken, onTranscript, onError }: UseVoiceIn
       };
 
       recorder.onerror = () => {
-        cleanupStream();
+        cleanupStream(true);
         resetIdle();
         onErrorRef.current?.('Recording failed. Try again.');
       };
 
       recorder.start(250);
       recordStartedAtRef.current = Date.now();
+      hadSpeechRef.current = false;
+      lastSpeechActivityRef.current = Date.now();
+      startWhisperVad(stream);
       setState('recording');
-      setInterimText('Recording… speak now, then tap Stop');
+      setInterimText('Listening…');
 
       recordTimerRef.current = setTimeout(() => {
         stopWhisper();
       }, MAX_RECORD_MS);
     } catch {
-      cleanupStream();
+      cleanupStream(true);
       resetIdle();
       onErrorRef.current?.('Microphone access denied. Allow mic permission in your browser settings.');
     }
-  }, [accessToken, cleanupStream, resetIdle, stopWhisper, uploadRecording]);
+  }, [accessToken, cleanupStream, ensureMicStream, micReady, resetIdle, stopWhisper, uploadRecording, startWhisperVad]);
 
   useEffect(() => {
     startWhisperRef.current = () => {
@@ -441,7 +580,7 @@ export function useVoiceInput({ accessToken, onTranscript, onError }: UseVoiceIn
       }
       recognitionRef.current = null;
       stopWhisper();
-      cleanupStream();
+      cleanupStream(true);
     },
     [stopWhisper, cleanupStream]
   );
@@ -453,11 +592,14 @@ export function useVoiceInput({ accessToken, onTranscript, onError }: UseVoiceIn
     mode,
     whisperAvailable,
     configLoaded,
+    micPermission,
+    micReady,
     state,
     active,
     listening: state === 'listening' || state === 'recording' || state === 'starting',
     transcribing: state === 'transcribing',
     interimText,
+    warmMic,
     toggle,
     stop,
   };

@@ -6,6 +6,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "setup": "bash ../../scripts/setup.sh ceevie",
     "setup:google": "bash ../../scripts/setup-google-auth.sh ceevie",
     "fill-env": "node ../../scripts/fill-env.js ceevie",
@@ -15,6 +17,7 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.43.0",
     "@yourorg/app-core": "*",
+    "html2canvas": "^1.4.1",
     "jspdf": "^4.2.1",
     "next": "^14.2.0",
     "react": "^18.2.0",
@@ -24,6 +27,7 @@
   "devDependencies": {
     "@types/node": "^26.1.0",
     "@types/react": "^19.2.17",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "vitest": "^3.2.7"
   }
 }

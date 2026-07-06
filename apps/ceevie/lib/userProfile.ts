@@ -8,6 +8,7 @@ export type UserProfile = {
   headline: string;
   avatarUrl?: string;
   linkedinConnectedAt?: string | null;
+  studioSetupCompletedAt?: string | null;
 };
 
 export const EMPTY_USER_PROFILE: UserProfile = {
@@ -22,7 +23,7 @@ export const EMPTY_USER_PROFILE: UserProfile = {
 };
 
 export const PROFILE_FIELD_LABELS: Record<
-  keyof Omit<UserProfile, 'email' | 'linkedinConnectedAt' | 'avatarUrl'>,
+  keyof Omit<UserProfile, 'email' | 'linkedinConnectedAt' | 'avatarUrl' | 'studioSetupCompletedAt'>,
   string
 > = {
   fullName: 'Full name',
@@ -44,6 +45,7 @@ export function normalizeUserProfile(profile?: Partial<UserProfile> | null): Use
     headline: profile?.headline?.trim() ?? '',
     avatarUrl: profile?.avatarUrl?.trim() ?? '',
     linkedinConnectedAt: profile?.linkedinConnectedAt ?? null,
+    studioSetupCompletedAt: profile?.studioSetupCompletedAt ?? null,
   };
 }
 
@@ -113,6 +115,19 @@ export function sanitizeProfileForSetup(profile: UserProfile): UserProfile {
 export function profileSetupComplete(profile: UserProfile): boolean {
   const safe = sanitizeProfileForSetup(profile);
   return Boolean(safe.fullName.trim() && safe.location.trim() && safe.headline.trim());
+}
+
+export function studioSetupComplete(profile: UserProfile): boolean {
+  return Boolean(profile.studioSetupCompletedAt);
+}
+
+export function onboardingComplete(profile: UserProfile): boolean {
+  return studioSetupComplete(profile) && profileSetupComplete(profile);
+}
+
+export function needsInitialStudioSetup(profile: UserProfile, hasPriorSession: boolean): boolean {
+  if (hasPriorSession) return false;
+  return !onboardingComplete(profile);
 }
 
 export function getMissingProfileSetupFields(profile: UserProfile): Array<

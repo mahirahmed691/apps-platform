@@ -15,6 +15,7 @@ export function useUserProfile(accessToken: string | undefined) {
   const [loading, setLoading] = useState(Boolean(accessToken));
   const [saveStatus, setSaveStatus] = useState<ProfileSaveStatus>('idle');
   const [loaded, setLoaded] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const loadProfile = useCallback(async (): Promise<UserProfile | null> => {
     if (!accessToken) return null;
@@ -23,18 +24,26 @@ export function useUserProfile(accessToken: string | undefined) {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
 
-    if (!response.ok) return null;
+    if (!response.ok) {
+      setLoadError('Could not load your profile. Try refreshing the page.');
+      setLoaded(true);
+      return null;
+    }
     const data = await response.json();
-    if (!data.profile) return null;
+    if (!data.profile) {
+      setLoaded(true);
+      return null;
+    }
 
     const profile = sanitizeProfileForSetup(normalizeUserProfile(data.profile as UserProfile));
     setProfile(profile);
+    setLoadError(null);
     setLoaded(true);
     return profile;
   }, [accessToken]);
 
   const saveProfile = useCallback(
-    async (next: UserProfile): Promise<boolean> => {
+    async (next: UserProfile, options?: { completeStudioSetup?: boolean }): Promise<boolean> => {
       if (!accessToken) return false;
 
       setSaveStatus('saving');
@@ -45,7 +54,10 @@ export function useUserProfile(accessToken: string | undefined) {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${accessToken}`,
           },
-          body: JSON.stringify(next),
+          body: JSON.stringify({
+            ...next,
+            completeStudioSetup: options?.completeStudioSetup ?? false,
+          }),
         });
 
         if (!response.ok) {
@@ -65,6 +77,29 @@ export function useUserProfile(accessToken: string | undefined) {
     [accessToken]
   );
 
+  const completeStudioSetup = useCallback(async (): Promise<boolean> => {
+    if (!accessToken) return false;
+
+    try {
+      const response = await fetch('/api/profile/complete-setup', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+
+      if (!response.ok) return false;
+
+      const data = await response.json();
+      setProfile((current) => ({
+        ...current,
+        studioSetupCompletedAt:
+          typeof data.studioSetupCompletedAt === 'string' ? data.studioSetupCompletedAt : new Date().toISOString(),
+      }));
+      return true;
+    } catch {
+      return false;
+    }
+  }, [accessToken]);
+
   const patchProfile = useCallback(
     async (patch: Partial<UserProfile>) => {
       const next = { ...profile, ...patch };
@@ -73,6 +108,23 @@ export function useUserProfile(accessToken: string | undefined) {
     },
     [profile, saveProfile]
   );
+
+  const resetOnboarding = useCallback(async (): Promise<boolean> => {
+    if (!accessToken) return false;
+
+    try {
+      const response = await fetch('/api/profile/reset-onboarding', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (!response.ok) return false;
+
+      await loadProfile();
+      return true;
+    } catch {
+      return false;
+    }
+  }, [accessToken, loadProfile]);
 
   useEffect(() => {
     if (!accessToken) {
@@ -101,10 +153,13 @@ export function useUserProfile(accessToken: string | undefined) {
     profile,
     loading,
     loaded,
+    loadError,
     saveStatus,
     loadProfile,
     saveProfile,
     patchProfile,
+    completeStudioSetup,
+    resetOnboarding,
     setProfile,
   };
 }

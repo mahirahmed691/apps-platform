@@ -1,8 +1,15 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import type { CvAnswers } from '@/lib/cvBuilder';
-import type { PdfTemplate } from '@/lib/studioFeatures';
+import { ANSWER_LABELS, type CvAnswers } from '@/lib/cvBuilder';
+
+const REOPEN_SECTION_LABELS: Partial<Record<keyof CvAnswers, string>> = {
+  recentRole: 'Recent role',
+  achievements: 'Achievements',
+  experience: 'Experience',
+  skills: 'Skills',
+};
+import { useStudioPreferences } from '@/hooks/useStudioPreferences';
 import { downloadCvPdf } from '@/lib/exportCvPdf';
 import {
   clearOfflineQueue,
@@ -25,6 +32,8 @@ type StudioToolkitProps = {
   onCvUpdated: (next: string) => void;
   onApplyJob: (job: { title?: string; company?: string; description?: string; requirements?: string }) => void;
   onReopenSection?: (sectionId: keyof CvAnswers) => void;
+  variant?: 'collapsible' | 'embedded';
+  onNotify?: (message: string) => void;
 };
 
 export function StudioToolkit({
@@ -35,8 +44,10 @@ export function StudioToolkit({
   onCvUpdated,
   onApplyJob,
   onReopenSection,
+  variant = 'collapsible',
+  onNotify,
 }: StudioToolkitProps) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(variant === 'embedded');
   const [jobInput, setJobInput] = useState('');
   const [importText, setImportText] = useState('');
   const [coverLetter, setCoverLetter] = useState('');
@@ -47,7 +58,7 @@ export function StudioToolkit({
   const [versionLabel, setVersionLabel] = useState('');
   const [diffText, setDiffText] = useState('');
   const [compareBefore, setCompareBefore] = useState('');
-  const [pdfTemplate, setPdfTemplate] = useState<PdfTemplate>('classic');
+  const { prefs } = useStudioPreferences();
   const [busy, setBusy] = useState<string | null>(null);
   const [offlineQueue, setOfflineQueue] = useState<OfflineQueueItem[]>([]);
   const [referralUrl, setReferralUrl] = useState<string | null>(null);
@@ -64,7 +75,10 @@ export function StudioToolkit({
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
       body: JSON.stringify(payload),
     });
-    if (!response.ok) return null;
+    if (!response.ok) {
+      onNotify?.('That action failed. Please try again.');
+      return null;
+    }
     return response.json() as Promise<T>;
   }
 
@@ -81,19 +95,13 @@ export function StudioToolkit({
   }
 
   useEffect(() => {
-    if (open) void refreshMeta();
-  }, [open, accessToken]);
+    if (open || variant === 'embedded') void refreshMeta();
+  }, [open, accessToken, variant]);
 
   if (!accessToken) return null;
 
-  return (
-    <div className="studio-toolkit">
-      <button type="button" className="btn btn-ghost btn-sm studio-toolkit-toggle" onClick={() => setOpen((v) => !v)}>
-        {open ? 'Hide tools' : 'More tools'}
-      </button>
-
-      {open && (
-        <div className="studio-toolkit-panel">
+  const panel = (
+    <div className={`studio-toolkit-panel${variant === 'embedded' ? ' studio-toolkit-panel-embedded' : ''}`}>
           <section>
             <h3>Job tailoring</h3>
             <p className="studio-toolkit-copy">Paste a job URL or posting text.</p>
@@ -108,7 +116,10 @@ export function StudioToolkit({
                   '/api/cv/job-url',
                   { input: jobInput }
                 );
-                if (data?.job) onApplyJob(data.job);
+                if (data?.job) {
+                  onApplyJob(data.job);
+                  onNotify?.('Job details extracted — your interview is now tailored.');
+                }
                 setBusy(null);
               }}
             >
@@ -127,7 +138,10 @@ export function StudioToolkit({
                   onClick={async () => {
                     setBusy('cover');
                     const data = await apiPost<{ coverLetter: string }>('/api/cv/cover-letter', { cv, answers, language });
-                    if (data?.coverLetter) setCoverLetter(data.coverLetter);
+                    if (data?.coverLetter) {
+                      setCoverLetter(data.coverLetter);
+                      onNotify?.('Cover letter generated.');
+                    }
                     setBusy(null);
                   }}
                 >
@@ -148,7 +162,10 @@ export function StudioToolkit({
                       cv,
                       jobDescription: answers.jobDescription,
                     });
-                    if (data?.result) setAts(data.result);
+                    if (data?.result) {
+                      setAts(data.result);
+                      onNotify?.(`ATS score: ${data.result.score}/100`);
+                    }
                     setBusy(null);
                   }}
                 >
@@ -164,6 +181,7 @@ export function StudioToolkit({
 
               <section>
                 <h3>Polish & templates</h3>
+                <p className="studio-toolkit-copy">Pick a theme in the CV preview panel. PDF export uses the same style.</p>
                 <div className="studio-toolkit-row">
                   <button
                     type="button"
@@ -172,23 +190,21 @@ export function StudioToolkit({
                     onClick={async () => {
                       setBusy('polish');
                       const data = await apiPost<{ cv: string }>('/api/cv/polish', { cv });
-                      if (data?.cv) onCvUpdated(data.cv);
+                      if (data?.cv) {
+                        onCvUpdated(data.cv);
+                        onNotify?.('CV bullets polished.');
+                      }
                       setBusy(null);
                     }}
                   >
                     Polish bullets
                   </button>
-                  <select value={pdfTemplate} onChange={(e) => setPdfTemplate(e.target.value as PdfTemplate)} aria-label="PDF template">
-                    <option value="classic">Classic PDF</option>
-                    <option value="modern">Modern PDF</option>
-                    <option value="compact">Compact PDF</option>
-                  </select>
                   <button
                     type="button"
                     className="btn btn-secondary btn-sm"
-                    onClick={() => void downloadCvPdf(cv, `ceevie-${pdfTemplate}.pdf`, pdfTemplate)}
+                    onClick={() => void downloadCvPdf(cv, `ceevie-${prefs.cvStyle.presetId}.pdf`, prefs.cvStyle)}
                   >
-                    Download styled PDF
+                    Download PDF
                   </button>
                 </div>
               </section>
@@ -339,14 +355,25 @@ export function StudioToolkit({
               <div className="studio-toolkit-row">
                 {(['recentRole', 'achievements', 'experience', 'skills'] as const).map((key) => (
                   <button key={key} type="button" className="btn btn-ghost btn-sm" onClick={() => onReopenSection(key)}>
-                    Re-do {key}
+                    Re-do {REOPEN_SECTION_LABELS[key] ?? key}
                   </button>
                 ))}
               </div>
             </section>
           )}
         </div>
-      )}
+  );
+
+  if (variant === 'embedded') {
+    return <div className="studio-toolkit studio-toolkit-embedded">{panel}</div>;
+  }
+
+  return (
+    <div className="studio-toolkit">
+      <button type="button" className="btn btn-ghost btn-sm studio-toolkit-toggle" onClick={() => setOpen((v) => !v)}>
+        {open ? 'Hide tools' : 'More tools'}
+      </button>
+      {open ? panel : null}
     </div>
   );
 }

@@ -1,6 +1,8 @@
 import type { CvAnswers } from '@/lib/cvBuilder';
 
-export type PdfTemplate = 'classic' | 'modern' | 'compact';
+import type { CvTemplateId } from '@/lib/cvTemplateLibrary';
+
+export type PdfTemplate = CvTemplateId;
 
 export type AtsScoreResult = {
   score: number;

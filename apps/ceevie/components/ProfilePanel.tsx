@@ -18,6 +18,7 @@ type ProfilePanelProps = {
   onClose: () => void;
   onSave: (profile: UserProfile) => Promise<boolean>;
   onLinkedInSynced?: () => void;
+  onAccountDeleted?: () => void | Promise<void>;
 };
 
 export function ProfilePanel({
@@ -31,9 +32,11 @@ export function ProfilePanel({
   onClose,
   onSave,
   onLinkedInSynced,
+  onAccountDeleted,
 }: ProfilePanelProps) {
   const [draft, setDraft] = useState<UserProfile>(profile);
   const [error, setError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (open) {
@@ -206,7 +209,7 @@ export function ProfilePanel({
           {accessToken ? (
             <div className="profile-privacy-block">
               <h3>Privacy & data</h3>
-              <p className="profile-sheet-copy">Export or delete your Ceevie data at any time.</p>
+              <p className="profile-sheet-copy">Export your data or permanently delete your account.</p>
               <div className="profile-sheet-actions profile-sheet-actions-stack">
                 <button
                   type="button"
@@ -228,13 +231,38 @@ export function ProfilePanel({
                 <button
                   type="button"
                   className="btn btn-ghost btn-sm app-nav-sheet-link-danger"
+                  disabled={deleting}
                   onClick={async () => {
-                    if (!window.confirm('Delete all saved CV drafts, exports, and profile fields?')) return;
-                    await fetch('/api/account/data', { method: 'DELETE', headers: { Authorization: `Bearer ${accessToken}` } });
-                    onClose();
+                    if (
+                      !window.confirm(
+                        'Delete your Ceevie account permanently? This removes your profile, CV drafts, and sign-in. You can create a new account with the same email afterwards.'
+                      )
+                    ) {
+                      return;
+                    }
+
+                    setDeleting(true);
+                    setError(null);
+                    try {
+                      const res = await fetch('/api/account', {
+                        method: 'DELETE',
+                        headers: { Authorization: `Bearer ${accessToken}` },
+                      });
+                      if (!res.ok) {
+                        const data = (await res.json().catch(() => null)) as { error?: string } | null;
+                        setError(data?.error || 'Could not delete your account. Please try again.');
+                        return;
+                      }
+                      onClose();
+                      await onAccountDeleted?.();
+                    } catch {
+                      setError('Could not delete your account. Please try again.');
+                    } finally {
+                      setDeleting(false);
+                    }
                   }}
                 >
-                  Delete my data
+                  {deleting ? 'Deleting account…' : 'Delete account'}
                 </button>
               </div>
             </div>

@@ -32,6 +32,12 @@ export function getAuthErrorMessage(error: AuthError): string {
   if (message.includes('email not confirmed')) {
     return 'Confirm your email before signing in.';
   }
+  if (message.includes('same password')) {
+    return 'Choose a different password from your current one.';
+  }
+  if (message.includes('recovery') && message.includes('expired')) {
+    return 'This reset link has expired. Request a new one from Forgot password.';
+  }
   if (message.includes('manual linking is disabled')) {
     return 'LinkedIn linking is not enabled on this project yet. Ask the admin to re-run setup: npm run setup:linkedin-auth -- ceevie jkonyzmutmsppwxvccbi --yes';
   }

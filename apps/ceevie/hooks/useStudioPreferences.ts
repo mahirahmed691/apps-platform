@@ -1,6 +1,13 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import {
+  DEFAULT_CV_STYLE,
+  normalizeCvStyleConfig,
+  styleConfigFromTemplate,
+  type CvStyleConfig,
+} from '@/lib/cvStyleConfig';
+import { isCvTemplate, type CvTemplate } from '@/lib/cvThemes';
 
 const STORAGE_KEY = 'ceevie-studio-prefs';
 
@@ -10,6 +17,7 @@ export type StudioPreferences = {
   coachMode: boolean;
   slowSpeechMode: boolean;
   language: string;
+  cvStyle: CvStyleConfig;
 };
 
 const DEFAULT_PREFS: StudioPreferences = {
@@ -18,7 +26,18 @@ const DEFAULT_PREFS: StudioPreferences = {
   coachMode: true,
   slowSpeechMode: false,
   language: 'en',
+  cvStyle: DEFAULT_CV_STYLE,
 };
+
+function readCvStyle(parsed: Partial<StudioPreferences> & { cvTemplate?: string }): CvStyleConfig {
+  if (parsed.cvStyle) {
+    return normalizeCvStyleConfig(parsed.cvStyle);
+  }
+  if (typeof parsed.cvTemplate === 'string' && isCvTemplate(parsed.cvTemplate)) {
+    return styleConfigFromTemplate(parsed.cvTemplate);
+  }
+  return DEFAULT_CV_STYLE;
+}
 
 function readPrefs(): StudioPreferences {
   if (typeof window === 'undefined') return DEFAULT_PREFS;
@@ -26,13 +45,14 @@ function readPrefs(): StudioPreferences {
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (!raw) return DEFAULT_PREFS;
-    const parsed = JSON.parse(raw) as Partial<StudioPreferences>;
+    const parsed = JSON.parse(raw) as Partial<StudioPreferences> & { cvTemplate?: string };
     return {
       ceevieVoice: parsed.ceevieVoice ?? DEFAULT_PREFS.ceevieVoice,
       captureSound: parsed.captureSound ?? DEFAULT_PREFS.captureSound,
       coachMode: parsed.coachMode ?? DEFAULT_PREFS.coachMode,
       slowSpeechMode: parsed.slowSpeechMode ?? DEFAULT_PREFS.slowSpeechMode,
       language: parsed.language ?? DEFAULT_PREFS.language,
+      cvStyle: readCvStyle(parsed),
     };
   } catch {
     return DEFAULT_PREFS;
@@ -76,6 +96,20 @@ export function useStudioPreferences() {
     [persist, prefs]
   );
 
+  const setCvStyle = useCallback(
+    (cvStyle: CvStyleConfig) => {
+      persist({ ...prefs, cvStyle: normalizeCvStyleConfig(cvStyle) });
+    },
+    [persist, prefs]
+  );
+
+  const applyCvPreset = useCallback(
+    (presetId: CvTemplate) => {
+      persist({ ...prefs, cvStyle: styleConfigFromTemplate(presetId) });
+    },
+    [persist, prefs]
+  );
+
   return {
     prefs,
     hydrated,
@@ -84,5 +118,7 @@ export function useStudioPreferences() {
     toggleCoachMode,
     toggleSlowSpeechMode,
     setLanguage,
+    setCvStyle,
+    applyCvPreset,
   };
 }

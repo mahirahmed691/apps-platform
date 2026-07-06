@@ -88,6 +88,13 @@ export default function AuthCallbackPage() {
         return;
       }
 
+      const recoveryType = new URLSearchParams(window.location.search).get('type');
+      if (recoveryType === 'recovery') {
+        router.replace('/auth/update-password');
+        router.refresh();
+        return;
+      }
+
       if (linkedInImport) {
         setMessage('Importing your LinkedIn details…');
         await new Promise((resolve) => window.setTimeout(resolve, 800));

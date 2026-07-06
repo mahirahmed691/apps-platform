@@ -132,6 +132,7 @@ export async function POST(req: NextRequest) {
   const profile = profileRow ? rowToProfile(profileRow, auth.user.email ?? '') : null;
 
   let roleBrief: { title: string; company: string; description: string; requirements: string } | null = null;
+  let followedCompanies: Awaited<ReturnType<typeof import('@/lib/companies').loadFollowedCompanyContexts>> = [];
   const { data: draftRow } = await auth.db
     .from('cv_drafts')
     .select('active_brief_id')
@@ -155,6 +156,12 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    followedCompanies = await (await import('@/lib/companies')).loadFollowedCompanyContexts(auth.db, auth.user.id);
+  } catch {
+    followedCompanies = [];
+  }
+
+  try {
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -165,7 +172,7 @@ export async function POST(req: NextRequest) {
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
         max_tokens: 768,
-        messages: [{ role: 'user', content: buildChatPrompt(messages, answers, userMessage, profile, roleBrief) }],
+        messages: [{ role: 'user', content: buildChatPrompt(messages, answers, userMessage, profile, roleBrief, followedCompanies) }],
       }),
       signal: controller.signal,
     });

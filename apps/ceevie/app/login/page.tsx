@@ -6,6 +6,7 @@ import { getAuthErrorMessage, isAlreadyRegistered } from '@yourorg/app-core';
 import { GoogleSignInButton } from '@/components/GoogleSignInButton';
 import { LinkedInSignInButton } from '@/components/LinkedInSignInButton';
 import { AuroraBackground } from '@/components/AuroraBackground';
+import { AuthFeatureShowcase } from '@/components/AuthFeatureShowcase';
 import { LandingDemo } from '@/components/LandingDemo';
 import { LoadingScreen } from '@/components/LoadingScreen';
 import { SetupRequired } from '@/components/SetupRequired';
@@ -17,89 +18,6 @@ import { getOAuthSiteUrl } from '@/lib/site';
 type AccountIntent = 'candidate' | 'recruiter';
 
 type Mode = 'signin' | 'signup' | 'reset';
-
-type IconName = 'mic' | 'profile' | 'preview' | 'export';
-
-function FeatureIcon({ name }: { name: IconName }) {
-  const common = {
-    width: 22,
-    height: 22,
-    viewBox: '0 0 24 24',
-    fill: 'none',
-    stroke: 'currentColor',
-    strokeWidth: 1.5,
-    strokeLinecap: 'round' as const,
-    strokeLinejoin: 'round' as const,
-    'aria-hidden': true,
-  };
-
-  if (name === 'mic') {
-    return (
-      <svg {...common}>
-        <rect x="9" y="3" width="6" height="11" rx="3" />
-        <path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
-      </svg>
-    );
-  }
-  if (name === 'profile') {
-    return (
-      <svg {...common}>
-        <circle cx="12" cy="8" r="3.5" />
-        <path d="M5 20a7 7 0 0 1 14 0" />
-      </svg>
-    );
-  }
-  if (name === 'preview') {
-    return (
-      <svg {...common}>
-        <rect x="4" y="3" width="16" height="18" rx="2" />
-        <path d="M8 8h8M8 12h8M8 16h4" />
-      </svg>
-    );
-  }
-  return (
-    <svg {...common}>
-      <path d="M12 3v11m0 0 4-4m-4 4-4-4" />
-      <path d="M5 17v2a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-2" />
-    </svg>
-  );
-}
-
-const FEATURE_DETAILS: Array<{ icon: IconName; label: string; title: string; copy: string }> = [
-  {
-    icon: 'mic',
-    label: 'Voice interview',
-    title: 'Guided prompts, not a blank page',
-    copy: 'Ceevie asks the right follow-ups and turns spoken answers into CV-ready sections.',
-  },
-  {
-    icon: 'profile',
-    label: 'Profile memory',
-    title: 'Your basics stay ready',
-    copy: 'Save your name, headline, location, LinkedIn URL, and photo once for every future CV.',
-  },
-  {
-    icon: 'preview',
-    label: 'Live preview',
-    title: 'Watch the document take shape',
-    copy: 'Each answer updates the preview, so you can see what is missing before exporting.',
-  },
-  {
-    icon: 'export',
-    label: 'Export',
-    title: 'Polished PDF when you are done',
-    copy: 'Generate a clean, recruiter-friendly CV from the story you just captured.',
-  },
-];
-
-const WORKFLOW_STEPS = ['Connect', 'Speak', 'Review', 'Export'];
-
-const AUTH_STATS = [
-  { value: '6', label: 'guided CV sections' },
-  { value: 'Voice', label: 'first interview' },
-  { value: 'Live', label: 'preview while you speak' },
-  { value: 'PDF', label: 'export when ready' },
-];
 
 export default function LoginPage() {
   return (
@@ -137,6 +55,11 @@ function LoginForm() {
       setError('Sign-in did not complete. Please try again.');
     } else if (authError) {
       setError(decodeURIComponent(authError));
+    }
+
+    if (searchParams.get('reset') === 'success') {
+      setInfo('Password updated. Sign in with your new password.');
+      setMode('signin');
     }
   }, [searchParams]);
 
@@ -183,13 +106,13 @@ function LoginForm() {
     try {
       if (mode === 'reset') {
         const { error: resetError } = await authClient.auth.resetPasswordForEmail(email, {
-          redirectTo: `${getOAuthSiteUrl()}/login`,
+          redirectTo: `${getOAuthSiteUrl()}/auth/update-password`,
         });
         if (resetError) {
           setError(getAuthErrorMessage(resetError));
           return;
         }
-        setInfo('Password reset email sent — check your inbox, then sign in with your new password.');
+        setInfo('Password reset email sent — open the link in your inbox to choose a new password.');
         setMode('signin');
         return;
       }
@@ -240,15 +163,36 @@ function LoginForm() {
       <div className="auth-page-content">
       <div className="auth-page-hero">
         <aside className="auth-manifesto" aria-hidden="false">
-          <p className="auth-manifesto-kicker">The end of blank pages</p>
+          <p className="auth-manifesto-kicker">
+            {accountIntent === 'recruiter' ? 'For hiring teams' : 'The end of blank pages'}
+          </p>
           <h2 className="auth-manifesto-title">
-            You don&apos;t write CVs.
-            <span>You tell your story.</span>
+            {accountIntent === 'recruiter' ? (
+              <>
+                Brief once.
+                <span>Review polished CVs faster.</span>
+              </>
+            ) : (
+              <>
+                You don&apos;t write CVs.
+                <span>You tell your story.</span>
+              </>
+            )}
           </h2>
           <ul className="auth-manifesto-points">
-            <li>Speak naturally — Ceevie asks the questions out loud</li>
-            <li>Watch your CV materialize in real time on the page</li>
-            <li>Export a polished PDF in one tap when you&apos;re done</li>
+            {accountIntent === 'recruiter' ? (
+              <>
+                <li>Create role briefs with requirements and culture notes</li>
+                <li>Invite candidates into tailored voice interviews</li>
+                <li>Review generated CVs in your recruiter dashboard</li>
+              </>
+            ) : (
+              <>
+                <li>Start fresh, continue a draft, or upload an existing CV</li>
+                <li>Speak naturally — guided questions build each section on the page</li>
+                <li>Edit inline, tailor to jobs, and export a matching PDF</li>
+              </>
+            )}
           </ul>
 
           <LandingDemo />
@@ -394,45 +338,7 @@ function LoginForm() {
         </div>
       </div>
 
-      <section className="auth-feature-section" aria-labelledby="auth-feature-title">
-        <div className="auth-feature-header">
-          <div className="auth-feature-heading">
-            <p className="auth-feature-eyebrow">Built for job applications</p>
-            <h3 id="auth-feature-title">Everything between your experience and a finished CV.</h3>
-          </div>
-
-          <div className="auth-workflow" aria-label="Ceevie workflow">
-            {WORKFLOW_STEPS.map((step, index) => (
-              <div className="auth-workflow-step" key={step}>
-                <span>{String(index + 1).padStart(2, '0')}</span>
-                <strong>{step}</strong>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="auth-feature-grid">
-          {FEATURE_DETAILS.map((feature) => (
-            <article className="auth-feature-card" key={feature.label}>
-              <span className="auth-feature-card-icon">
-                <FeatureIcon name={feature.icon} />
-              </span>
-              <p>{feature.label}</p>
-              <h4>{feature.title}</h4>
-              <span className="auth-feature-card-copy">{feature.copy}</span>
-            </article>
-          ))}
-        </div>
-
-        <dl className="auth-feature-stats">
-          {AUTH_STATS.map((stat) => (
-            <div className="auth-feature-stat" key={stat.label}>
-              <dt>{stat.label}</dt>
-              <dd>{stat.value}</dd>
-            </div>
-          ))}
-        </dl>
-      </section>
+      <AuthFeatureShowcase accountIntent={accountIntent} />
       </div>
     </div>
   );
