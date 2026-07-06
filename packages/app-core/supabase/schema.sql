@@ -18,7 +18,8 @@ create table if not exists public.profiles (
   linkedin_url text,
   portfolio_url text,
   headline text,
-  profile_updated_at timestamptz
+  profile_updated_at timestamptz,
+  studio_setup_completed_at timestamptz
 );
 
 alter table public.profiles enable row level security;

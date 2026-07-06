@@ -197,12 +197,13 @@ function syncTarget(target) {
       const message = vercelEnvErrorMessage(err);
       if (
         target === 'preview' &&
-        message.includes('does not have a connected Git repository')
+        (message.includes('does not have a connected Git repository') ||
+          message.includes('Cannot set Production Branch'))
       ) {
         previewSkipped = true;
-        console.warn('\n    Preview sync skipped: Vercel project is not linked to Git.');
+        console.warn('\n    Preview sync skipped: Vercel preview env vars need a linked Git repo and non-production branch.');
         console.warn('    Connect the repo in Vercel project settings, then re-run:');
-        console.warn(`      node scripts/sync-vercel-env.js ${appName} ${projectRef} --env preview`);
+        console.warn(`      node scripts/sync-vercel-env.js ${appName} ${projectRef} --env preview --preview-branch=<branch>`);
         console.warn('    Production env vars were still synced.');
         break;
       }

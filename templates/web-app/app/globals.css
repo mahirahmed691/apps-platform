@@ -1,0 +1,221 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  color: #111;
+  background: #fafafa;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+}
+
+.app-loading,
+.app-onboarding-gate {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+}
+
+.app-shell {
+  max-width: 48rem;
+  margin: 0 auto;
+  padding: 2rem 1.25rem 3rem;
+}
+
+.app-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.app-header h1 {
+  margin: 0;
+}
+
+.app-header p {
+  margin: 0.25rem 0 0;
+  color: #555;
+}
+
+.app-header-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.app-form {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+.app-form label {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.app-form textarea {
+  padding: 0.65rem;
+  resize: vertical;
+}
+
+.app-error {
+  color: #b00020;
+  margin: 0;
+}
+
+.app-result pre {
+  white-space: pre-wrap;
+  background: #f0f0f0;
+  padding: 1rem;
+  border-radius: 0.5rem;
+}
+
+.app-onboarding {
+  width: min(32rem, 100%);
+}
+
+.app-onboarding-progress {
+  height: 3px;
+  border-radius: 999px;
+  background: #e5e5e5;
+  overflow: hidden;
+  margin-bottom: 1.25rem;
+}
+
+.app-onboarding-progress-fill {
+  height: 100%;
+  background: #111;
+}
+
+.app-onboarding-shell {
+  display: grid;
+  gap: 1rem;
+}
+
+.app-onboarding-header h1 {
+  margin: 0.35rem 0 0;
+  font-size: 1.75rem;
+}
+
+.app-onboarding-header p,
+.app-onboarding-kicker {
+  margin: 0;
+  color: #555;
+}
+
+.app-onboarding-kicker {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.app-onboarding-card {
+  display: grid;
+  gap: 0.85rem;
+  padding: 1.1rem;
+  border: 1px solid #ddd;
+  border-radius: 0.85rem;
+  background: #fff;
+}
+
+.app-onboarding-form label {
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.92rem;
+}
+
+.app-onboarding-form input {
+  padding: 0.6rem 0.7rem;
+  border: 1px solid #ccc;
+  border-radius: 0.5rem;
+}
+
+.app-onboarding-optional {
+  font-weight: 400;
+  color: #777;
+}
+
+.app-onboarding-primary,
+.app-secondary,
+.app-form button,
+.app-header-actions button {
+  padding: 0.625rem 1rem;
+  border-radius: 0.5rem;
+  border: 1px solid #111;
+  background: #111;
+  color: #fff;
+  cursor: pointer;
+}
+
+.app-secondary,
+.app-header-actions button:last-child {
+  background: #fff;
+  color: #111;
+}
+
+.app-onboarding-summary {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.app-onboarding-summary span {
+  color: #555;
+}
+
+.app-onboarding-error {
+  margin: 0;
+  color: #b00020;
+}
+
+.app-onboarding-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.app-onboarding-dots {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.app-onboarding-dots span {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: #ccc;
+}
+
+.app-onboarding-dot-active {
+  background: #111 !important;
+}
+
+.app-onboarding-skip {
+  border: none;
+  background: transparent;
+  color: #555;
+  cursor: pointer;
+  padding: 0;
+}
+
+@media (max-width: 640px) {
+  .app-header {
+    flex-direction: column;
+  }
+
+  .app-onboarding-form input {
+    font-size: 16px;
+  }
+}
